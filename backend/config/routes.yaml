@@ -1,0 +1,9 @@
+controllers:
+    resource:
+        path: ../src/Controller/
+        namespace: App\Controller
+    type: attribute
+
+# Point d'entrée géré par le firewall json_login (aucun contrôleur requis).
+api_login_check:
+    path: /api/login_check

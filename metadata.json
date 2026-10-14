@@ -1,0 +1,8 @@
+{
+  "name": "Recensement de la Population",
+  "description": "Application de recensement démographique et de gestion des ménages, individus et statistiques de population.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

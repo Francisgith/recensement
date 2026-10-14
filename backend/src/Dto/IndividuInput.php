@@ -28,4 +28,6 @@ class IndividuInput
 
     #[Assert\Length(max: 30)]
     public ?string $telephone = null;
+
+    public ?string $photo = null;
 }

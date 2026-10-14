@@ -104,6 +104,7 @@ class MembreFamilleController extends AbstractController
             ->setSexe($input->sexe)
             ->setProfession($input->profession)
             ->setLien($input->lien)
+            ->setPhoto($input->photo)
             ->setChef($chef);
     }
 

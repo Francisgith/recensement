@@ -229,7 +229,7 @@ function ModalRoot({
         tabIndex={-1}
         role="dialog"
         onMouseDown={onHide}
-        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+        style={{ backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(4px)' }}
       >
         <div
           className={`modal-dialog ${centered ? 'modal-dialog-centered' : ''}`.trim()}
@@ -261,7 +261,7 @@ function ModalHeader({
 }
 
 function ModalTitle({ className = '', children }: { className?: string; children: ReactNode }) {
-  return <h5 className={`modal-title ${className}`.trim()}>{children}</h5>
+  return <h5 className={`modal-title fw-semibold ${className}`.trim()}>{children}</h5>
 }
 
 function ModalBody({ className = '', children }: { className?: string; children: ReactNode }) {

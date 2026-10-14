@@ -4,6 +4,7 @@ import { Button, Card, Form, Spinner } from '../components/ui'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { getApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import Icon from '../components/Icon'
 
 export default function LoginPage() {
   const { login, user, loading: authLoading } = useAuth()
@@ -36,7 +37,7 @@ export default function LoginPage() {
       <Card className="border-0 shadow-lg" style={{ width: '100%', maxWidth: 420 }}>
         <Card.Body className="p-4 p-md-5">
           <div className="text-center mb-4">
-            <div style={{ fontSize: 44 }}>🏘️</div>
+            <Icon name="building" size={44} className="text-primary mb-2" />
             <h1 className="h4 fw-bold mb-1">FANISAM-BAHOAKA</h1>
             <p className="text-muted small mb-0">Recensement de la population</p>
           </div>

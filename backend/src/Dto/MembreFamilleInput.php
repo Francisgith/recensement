@@ -26,6 +26,8 @@ class MembreFamilleInput
     #[Assert\Length(max: 100)]
     public ?string $lien = null;
 
+    public ?string $photo = null;
+
     #[Assert\NotBlank]
     #[Assert\Uuid]
     public ?string $chef = null;

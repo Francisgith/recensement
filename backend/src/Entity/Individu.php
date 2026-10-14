@@ -59,6 +59,10 @@ class Individu
     #[Assert\Length(max: 30)]
     private ?string $telephone = null;
 
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['individu:read', 'individu:write'])]
+    private ?string $photo = null;
+
     /**
      * @var Collection<int, MembreFamille>
      */
@@ -159,6 +163,18 @@ class Individu
     public function setTelephone(?string $telephone): static
     {
         $this->telephone = $telephone;
+
+        return $this;
+    }
+
+    public function getPhoto(): ?string
+    {
+        return $this->photo;
+    }
+
+    public function setPhoto(?string $photo): static
+    {
+        $this->photo = $photo;
 
         return $this;
     }

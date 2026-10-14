@@ -5,6 +5,9 @@ import { getApiError } from '../api/client'
 import { individuApi } from '../api/resources'
 import type { Individu, IndividuPayload, Sexe } from '../api/types'
 import { SEXE_OPTIONS, sexeLabel } from '../api/types'
+import Icon from '../components/Icon'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import PhotoUpload from '../components/PhotoUpload'
 
 interface FormState {
   nom: string
@@ -13,9 +16,10 @@ interface FormState {
   profession: string
   adresse: string
   telephone: string
+  photo: string | null
 }
 
-const emptyForm: FormState = { nom: '', age: '', sexe: 'LAHY', profession: '', adresse: '', telephone: '' }
+const emptyForm: FormState = { nom: '', age: '', sexe: 'LAHY', profession: '', adresse: '', telephone: '', photo: null }
 
 export default function IndividusPage() {
   const [items, setItems] = useState<Individu[]>([])
@@ -29,6 +33,9 @@ export default function IndividusPage() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const [deleteTarget, setDeleteTarget] = useState<Individu | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,6 +69,7 @@ export default function IndividusPage() {
       profession: item.profession ?? '',
       adresse: item.adresse ?? '',
       telephone: item.telephone ?? '',
+      photo: item.photo ?? null,
     })
     setFormError('')
     setShow(true)
@@ -78,6 +86,7 @@ export default function IndividusPage() {
       profession: form.profession.trim() || null,
       adresse: form.adresse.trim() || null,
       telephone: form.telephone.trim() || null,
+      photo: form.photo,
     }
     try {
       if (editing) {
@@ -95,24 +104,32 @@ export default function IndividusPage() {
   }
 
   const remove = async (item: Individu) => {
-    if (!window.confirm(`Supprimer « ${item.nom} » et sa famille ?`)) return
+    setDeleteTarget(item)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await individuApi.remove(item.id)
+      await individuApi.remove(deleteTarget.id)
+      setDeleteTarget(null)
       await load()
     } catch (err) {
       setError(getApiError(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
   return (
     <div>
-      <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+      <div className="page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-          <h1 className="h3 fw-bold mb-0">Chefs de famille</h1>
-          <p className="text-muted mb-0">Raim(na renim-)-pianakavina</p>
+          <h1>Chefs de famille</h1>
+          <p>Raim(na renim-)-pianakavina</p>
         </div>
         <Button variant="success" onClick={openCreate}>
-          ➕ Nouveau chef de famille
+          <Icon name="plus" size={16} className="me-1" /> Nouveau chef de famille
         </Button>
       </div>
 
@@ -174,7 +191,26 @@ export default function IndividusPage() {
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
-                    <td className="fw-semibold">{item.nom}</td>
+                    <td>
+                      <div className="d-flex align-items-center gap-2">
+                        {item.photo ? (
+                          <img
+                            src={item.photo}
+                            alt={item.nom}
+                            className="rounded-circle"
+                            style={{ width: 36, height: 36, objectFit: 'cover', border: '2px solid #e2e8f0' }}
+                          />
+                        ) : (
+                          <div
+                            className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                            style={{ width: 36, height: 36, backgroundColor: '#94a3b8', fontSize: '0.8rem', border: '2px solid #e2e8f0' }}
+                          >
+                            {item.nom.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="fw-semibold">{item.nom}</span>
+                      </div>
+                    </td>
                     <td>{item.age}</td>
                     <td>
                       <Badge bg={item.sexe === 'LAHY' ? 'primary' : 'danger'}>
@@ -213,6 +249,11 @@ export default function IndividusPage() {
                 {formError}
               </Alert>
             )}
+            <PhotoUpload
+              value={form.photo}
+              onChange={(photo) => setForm({ ...form, photo })}
+              name={editing?.nom ?? 'Nouveau chef de famille'}
+            />
             <div className="row g-3">
               <div className="col-12">
                 <Form.Label>Anarana *</Form.Label>
@@ -275,11 +316,20 @@ export default function IndividusPage() {
               Annuler
             </Button>
             <Button type="submit" variant="success" disabled={saving}>
-              {saving ? <Spinner size="sm" animation="border" /> : 'Enregistrer'}
+              {saving ? <Spinner size="sm" animation="border" /> : editing ? 'Mettre à jour' : 'Enregistrer'}
             </Button>
           </Modal.Footer>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        show={deleteTarget !== null}
+        name={deleteTarget?.nom ?? ''}
+        message={`Supprimer « ${deleteTarget?.nom} » et toute sa famille ?`}
+        deleting={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

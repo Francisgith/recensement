@@ -99,7 +99,8 @@ class IndividuController extends AbstractController
             ->setSexe($input->sexe)
             ->setProfession($input->profession)
             ->setAdresse($input->adresse)
-            ->setTelephone($input->telephone);
+            ->setTelephone($input->telephone)
+            ->setPhoto($input->photo);
     }
 
     private function findOrFail(string $id): Individu

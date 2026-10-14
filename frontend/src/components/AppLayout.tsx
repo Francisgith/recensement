@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import Icon from './Icon'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `nav-link${isActive ? ' active fw-semibold' : ''}`
@@ -32,7 +33,7 @@ export default function AppLayout() {
       <nav className="navbar navbar-expand-lg navbar-dark brand-gradient shadow-sm">
         <div className="container-xl">
           <NavLink to="/" className="navbar-brand fw-bold d-flex align-items-center gap-2">
-            <span className="fs-4">🏘️</span>
+            <Icon name="building" size={22} />
             <span>FANISAM-BAHOAKA</span>
           </NavLink>
           <button

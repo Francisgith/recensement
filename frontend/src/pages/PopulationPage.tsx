@@ -61,9 +61,9 @@ export default function PopulationPage() {
 
   return (
     <div>
-      <div className="mb-3">
-        <h1 className="h3 fw-bold mb-0">Recherche dans la population</h1>
-        <p className="text-muted mb-0">Fitadiavana mponina amin'ny alalan'ny taona sy ny sokajy</p>
+      <div className="page-header">
+        <h1>Recherche dans la population</h1>
+        <p>Fitadiavana mponina amin'ny alalan'ny taona sy ny sokajy</p>
       </div>
 
       <Card className="border-0 shadow-sm mb-3">

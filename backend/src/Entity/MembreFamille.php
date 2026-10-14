@@ -52,6 +52,10 @@ class MembreFamille
     #[Assert\Length(max: 100)]
     private ?string $lien = null;
 
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    #[Groups(['membre:read', 'membre:write'])]
+    private ?string $photo = null;
+
     #[ORM\ManyToOne(targetEntity: Individu::class, inversedBy: 'membres')]
     #[ORM\JoinColumn(name: 'chef_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     #[Groups(['membre:read', 'membre:write'])]
@@ -139,6 +143,18 @@ class MembreFamille
     public function setLien(?string $lien): static
     {
         $this->lien = $lien;
+
+        return $this;
+    }
+
+    public function getPhoto(): ?string
+    {
+        return $this->photo;
+    }
+
+    public function setPhoto(?string $photo): static
+    {
+        $this->photo = $photo;
 
         return $this;
     }

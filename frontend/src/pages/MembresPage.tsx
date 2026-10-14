@@ -5,6 +5,9 @@ import { getApiError } from '../api/client'
 import { individuApi, membreApi } from '../api/resources'
 import type { Individu, MembreFamille, MembrePayload, Sexe } from '../api/types'
 import { SEXE_OPTIONS, sexeLabel } from '../api/types'
+import Icon from '../components/Icon'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import PhotoUpload from '../components/PhotoUpload'
 
 interface FormState {
   nom: string
@@ -13,9 +16,10 @@ interface FormState {
   profession: string
   lien: string
   chef: string
+  photo: string | null
 }
 
-const emptyForm: FormState = { nom: '', age: '', sexe: 'VAVY', profession: '', lien: '', chef: '' }
+const emptyForm: FormState = { nom: '', age: '', sexe: 'VAVY', profession: '', lien: '', chef: '', photo: null }
 
 export default function MembresPage() {
   const [items, setItems] = useState<MembreFamille[]>([])
@@ -30,6 +34,9 @@ export default function MembresPage() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const [deleteTarget, setDeleteTarget] = useState<MembreFamille | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -65,6 +72,7 @@ export default function MembresPage() {
       profession: item.profession ?? '',
       lien: item.lien ?? '',
       chef: item.chef?.id ?? chefs[0]?.id ?? '',
+      photo: item.photo ?? null,
     })
     setFormError('')
     setShow(true)
@@ -80,6 +88,7 @@ export default function MembresPage() {
       sexe: form.sexe,
       profession: form.profession.trim() || null,
       lien: form.lien.trim() || null,
+      photo: form.photo,
       chef: form.chef,
     }
     try {
@@ -98,24 +107,32 @@ export default function MembresPage() {
   }
 
   const remove = async (item: MembreFamille) => {
-    if (!window.confirm(`Supprimer « ${item.nom} » ?`)) return
+    setDeleteTarget(item)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await membreApi.remove(item.id)
+      await membreApi.remove(deleteTarget.id)
+      setDeleteTarget(null)
       await load()
     } catch (err) {
       setError(getApiError(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
   return (
     <div>
-      <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+      <div className="page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-          <h1 className="h3 fw-bold mb-0">Membres de la famille</h1>
-          <p className="text-muted mb-0">Ankohonana</p>
+          <h1>Membres de la famille</h1>
+          <p>Ankohonana</p>
         </div>
         <Button variant="primary" onClick={openCreate} disabled={chefs.length === 0}>
-          ➕ Nouveau membre
+          <Icon name="plus" size={16} className="me-1" /> Nouveau membre
         </Button>
       </div>
 
@@ -173,7 +190,26 @@ export default function MembresPage() {
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
-                    <td className="fw-semibold">{item.nom}</td>
+                    <td>
+                      <div className="d-flex align-items-center gap-2">
+                        {item.photo ? (
+                          <img
+                            src={item.photo}
+                            alt={item.nom}
+                            className="rounded-circle"
+                            style={{ width: 36, height: 36, objectFit: 'cover', border: '2px solid #e2e8f0' }}
+                          />
+                        ) : (
+                          <div
+                            className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
+                            style={{ width: 36, height: 36, backgroundColor: '#94a3b8', fontSize: '0.8rem', border: '2px solid #e2e8f0' }}
+                          >
+                            {item.nom.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="fw-semibold">{item.nom}</span>
+                      </div>
+                    </td>
                     <td>{item.age}</td>
                     <td>
                       <Badge bg={item.sexe === 'LAHY' ? 'primary' : 'danger'}>
@@ -217,6 +253,11 @@ export default function MembresPage() {
                 {formError}
               </Alert>
             )}
+            <PhotoUpload
+              value={form.photo}
+              onChange={(photo) => setForm({ ...form, photo })}
+              name={editing?.nom ?? 'Nouveau membre'}
+            />
             <div className="row g-3">
               <div className="col-12">
                 <Form.Label>Chef de famille (RAIM/RENIM) *</Form.Label>
@@ -288,11 +329,20 @@ export default function MembresPage() {
               Annuler
             </Button>
             <Button type="submit" variant="primary" disabled={saving}>
-              {saving ? <Spinner size="sm" animation="border" /> : 'Enregistrer'}
+              {saving ? <Spinner size="sm" animation="border" /> : editing ? 'Mettre à jour' : 'Enregistrer'}
             </Button>
           </Modal.Footer>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        show={deleteTarget !== null}
+        name={deleteTarget?.nom ?? ''}
+        message={`Supprimer « ${deleteTarget?.nom} » de la famille ?`}
+        deleting={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

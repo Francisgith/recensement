@@ -8,6 +8,7 @@ export interface Individu {
   profession: string | null
   adresse: string | null
   telephone: string | null
+  photo: string | null
   createdAt: string
   updatedAt: string
 }
@@ -19,6 +20,7 @@ export interface MembreFamille {
   sexe: Sexe
   profession: string | null
   lien: string | null
+  photo: string | null
   chef: Pick<Individu, 'id' | 'nom'> | null
   createdAt: string
   updatedAt: string
@@ -68,6 +70,7 @@ export interface IndividuPayload {
   profession: string | null
   adresse: string | null
   telephone: string | null
+  photo?: string | null
 }
 
 export interface MembrePayload {
@@ -76,6 +79,7 @@ export interface MembrePayload {
   sexe: Sexe
   profession: string | null
   lien: string | null
+  photo?: string | null
   chef: string
 }
 

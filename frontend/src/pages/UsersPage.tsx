@@ -5,6 +5,8 @@ import { getApiError } from '../api/client'
 import { userApi } from '../api/resources'
 import type { User, UserPayload } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
+import Icon from '../components/Icon'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 
 interface FormState {
   email: string
@@ -27,6 +29,9 @@ export default function UsersPage() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -91,24 +96,32 @@ export default function UsersPage() {
   }
 
   const remove = async (item: User) => {
-    if (!window.confirm(`Supprimer l'utilisateur « ${item.nom} » ?`)) return
+    setDeleteTarget(item)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
     try {
-      await userApi.remove(item.id)
+      await userApi.remove(deleteTarget.id)
+      setDeleteTarget(null)
       await load()
     } catch (err) {
       setError(getApiError(err))
+    } finally {
+      setDeleting(false)
     }
   }
 
   return (
     <div>
-      <div className="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+      <div className="page-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div>
-          <h1 className="h3 fw-bold mb-0">Utilisateurs</h1>
-          <p className="text-muted mb-0">Gestion des administrateurs et agents de terrain</p>
+          <h1>Utilisateurs</h1>
+          <p>Gestion des administrateurs et agents de terrain</p>
         </div>
         <Button variant="success" onClick={openCreate}>
-          ➕ Nouvel utilisateur
+          <Icon name="plus" size={16} className="me-1" /> Nouvel utilisateur
         </Button>
       </div>
 
@@ -243,6 +256,15 @@ export default function UsersPage() {
           </Modal.Footer>
         </Form>
       </Modal>
+
+      <DeleteConfirmModal
+        show={deleteTarget !== null}
+        name={deleteTarget?.nom ?? ''}
+        message={`Supprimer l'utilisateur « ${deleteTarget?.nom} » ?`}
+        deleting={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   )
 }

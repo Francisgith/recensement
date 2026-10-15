@@ -7,6 +7,7 @@ import StatCard from '../components/StatCard'
 import DemographicCharts from '../components/DemographicCharts'
 import { Alert, Card, Spinner } from '../components/ui'
 import Icon from '../components/Icon'
+import MadagascarMap from '../components/MadagascarMap'
 
 export default function DashboardPage() {
   const [overview, setOverview] = useState<Overview | null>(null)
@@ -14,6 +15,10 @@ export default function DashboardPage() {
   const [territorial, setTerritorial] = useState<TerritorialOverview | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showDashboardMap, setShowDashboardMap] = useState(false)
+  const [dashProvince, setDashProvince] = useState('')
+  const [dashRegion, setDashRegion] = useState('')
+  const [dashDistrict, setDashDistrict] = useState('')
 
   useEffect(() => {
     let ignore = false
@@ -73,9 +78,19 @@ export default function DashboardPage() {
         </div>
 
         <div className="d-flex align-items-center gap-2">
-          <Link to="/regions" className="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setShowDashboardMap(!showDashboardMap)}
+            className={`btn btn-sm d-flex align-items-center gap-1.5 ${
+              showDashboardMap ? 'btn-success text-white' : 'btn-outline-success'
+            }`}
+          >
             <Icon name="map" size={15} />
-            <span>Carte de Madagascar &amp; Régions</span>
+            <span>{showDashboardMap ? 'Masquer la Carte' : 'Carte Interactive'}</span>
+          </button>
+          <Link to="/regions" className="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+            <Icon name="activity" size={15} />
+            <span>Recensement Territorial</span>
           </Link>
           <Link to="/individus" className="btn btn-sm btn-primary d-flex align-items-center gap-1">
             <Icon name="plus" size={15} />
@@ -85,6 +100,32 @@ export default function DashboardPage() {
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
+
+      {/* Interactive Madagascar Map on Dashboard */}
+      {showDashboardMap && territorial && (
+        <MadagascarMap
+          selectedProvince={dashProvince}
+          selectedRegion={dashRegion}
+          selectedDistrict={dashDistrict}
+          onSelectProvince={(p) => {
+            setDashProvince(p)
+            setDashRegion('')
+            setDashDistrict('')
+          }}
+          onSelectRegion={(r, p) => {
+            if (p) setDashProvince(p)
+            setDashRegion(r)
+            setDashDistrict('')
+          }}
+          onSelectDistrict={(d) => setDashDistrict(d)}
+          onResetFilters={() => {
+            setDashProvince('')
+            setDashRegion('')
+            setDashDistrict('')
+          }}
+          territorialUnits={territorial.regions}
+        />
+      )}
 
       {overview && (
         <>

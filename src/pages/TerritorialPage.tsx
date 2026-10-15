@@ -21,6 +21,7 @@ import { Alert, Button, Card, Col, Row, Spinner, Table } from '../components/ui'
 import Icon from '../components/Icon'
 import AnimatedCurveChart from '../components/AnimatedCurveChart'
 import MadagascarMap from '../components/MadagascarMap'
+import BackButton from '../components/BackButton'
 
 type ViewLevel = 'provinces' | 'regions' | 'districts' | 'communes'
 
@@ -182,20 +183,23 @@ export default function TerritorialPage() {
     <div className="d-flex flex-column gap-4">
       {/* Page Header */}
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <span
-              className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
-              style={{ fontSize: '0.75rem' }}
-            >
-              Découpage Administratif
-            </span>
-            <span className="text-muted small">Madagascar (6 Provinces · 23 Régions)</span>
+        <div className="d-flex align-items-center gap-3">
+          <BackButton />
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Découpage Administratif
+              </span>
+              <span className="text-muted small">Madagascar (6 Provinces · 23 Régions)</span>
+            </div>
+            <h1 className="h4 fw-bold text-dark mb-1">Recensement Territorial</h1>
+            <p className="text-secondary small mb-0">
+              Analyse et gestion des chiffres de la population par subdivision géographique
+            </p>
           </div>
-          <h1 className="h4 fw-bold text-dark mb-1">Recensement Territorial</h1>
-          <p className="text-secondary small mb-0">
-            Analyse et gestion des chiffres de la population par subdivision géographique
-          </p>
         </div>
 
         <div className="d-flex align-items-center gap-2">

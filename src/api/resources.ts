@@ -7,6 +7,7 @@ import type {
   MembrePayload,
   Overview,
   PopulationResult,
+  RegisterPayload,
   Sexe,
   TerritorialOverview,
   User,
@@ -41,6 +42,10 @@ export const authApi = {
   async login(email: string, password: string): Promise<string> {
     const { data } = await api.post<{ token: string }>('/login_check', { email, password })
     return data.token
+  },
+  async register(payload: RegisterPayload): Promise<{ token: string; user: User; message: string }> {
+    const { data } = await api.post<{ token: string; user: User; message: string }>('/register', payload)
+    return data
   },
   async me(): Promise<User> {
     const { data } = await api.get<User>('/me')

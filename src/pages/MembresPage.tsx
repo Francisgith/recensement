@@ -9,6 +9,7 @@ import { SEXE_OPTIONS, sexeLabel } from '../api/types'
 import Icon from '../components/Icon'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import PhotoUpload from '../components/PhotoUpload'
+import BackButton from '../components/BackButton'
 
 interface FormState {
   nom: string
@@ -171,20 +172,23 @@ export default function MembresPage() {
     <div className="d-flex flex-column gap-3">
       {/* Header */}
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <span
-              className="badge bg-warning bg-opacity-10 text-dark fw-semibold px-2 py-1 rounded"
-              style={{ fontSize: '0.75rem' }}
-            >
-              Ankohonana
-            </span>
-            <span className="text-muted small">Membres rattachés aux foyers</span>
+        <div className="d-flex align-items-center gap-3">
+          <BackButton />
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="badge bg-warning bg-opacity-10 text-warning fw-semibold px-2 py-1 rounded border border-warning border-opacity-25"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Ankohonana
+              </span>
+              <span className="text-muted small">Membres rattachés aux foyers</span>
+            </div>
+            <h1 className="h4 fw-bold text-dark mb-1">Membres de la Famille</h1>
+            <p className="text-secondary small mb-0">
+              Gestion des membres dépendants, conjoints et enfants recensés
+            </p>
           </div>
-          <h1 className="h4 fw-bold text-dark mb-1">Membres de la Famille</h1>
-          <p className="text-secondary small mb-0">
-            Gestion des membres dépendants, conjoints et enfants recensés
-          </p>
         </div>
         <Button variant="primary" size="sm" onClick={openCreate} disabled={chefs.length === 0}>
           <Icon name="plus" size={16} className="me-1" /> Nouveau membre

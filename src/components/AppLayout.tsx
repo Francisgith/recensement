@@ -118,12 +118,16 @@ export default function AppLayout() {
                 onClick={() => setMenuOpen((value) => !value)}
               >
                 <div
-                  className="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold"
-                  style={{ width: 24, height: 24, backgroundColor: '#0284c7', fontSize: '0.7rem' }}
+                  className="rounded-circle overflow-hidden d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                  style={{ width: 26, height: 26, backgroundColor: '#0284c7', fontSize: '0.72rem' }}
                 >
-                  {user?.nom ? user.nom.charAt(0).toUpperCase() : 'U'}
+                  {user?.photo ? (
+                    <img src={user.photo} alt={user.nom} className="w-100 h-100 object-fit-cover" />
+                  ) : (
+                    user?.nom ? user.nom.charAt(0).toUpperCase() : 'U'
+                  )}
                 </div>
-                <span className="small text-truncate d-none d-sm-inline" style={{ maxWidth: 100 }}>
+                <span className="small text-truncate d-none d-sm-inline" style={{ maxWidth: 110 }}>
                   {user?.nom ?? 'Compte'}
                 </span>
                 <Icon name="chevron-down" size={12} className="text-white text-opacity-70" />
@@ -131,14 +135,39 @@ export default function AppLayout() {
 
               <ul
                 className={`dropdown-menu dropdown-menu-end shadow border-0 p-2 ${menuOpen ? 'show' : ''}`}
-                style={{ minWidth: 220 }}
+                style={{ minWidth: 240 }}
               >
                 <li className="px-3 py-2 border-bottom mb-1">
-                  <div className="fw-semibold text-dark small">{user?.nom}</div>
-                  <div className="text-muted small" style={{ fontSize: '0.75rem' }}>{user?.email}</div>
-                  <span className="badge bg-light text-secondary border mt-1" style={{ fontSize: '0.68rem' }}>
-                    {hasRole('ROLE_ADMIN') ? 'Administrateur' : 'Agent de terrain'}
-                  </span>
+                  <div className="d-flex align-items-center gap-2 mb-1.5">
+                    <div
+                      className="rounded-circle overflow-hidden d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                      style={{ width: 36, height: 36, backgroundColor: '#0284c7', fontSize: '0.9rem' }}
+                    >
+                      {user?.photo ? (
+                        <img src={user.photo} alt={user.nom} className="w-100 h-100 object-fit-cover" />
+                      ) : (
+                        user?.nom ? user.nom.charAt(0).toUpperCase() : 'U'
+                      )}
+                    </div>
+                    <div className="overflow-hidden">
+                      <div className="fw-semibold small text-truncate" style={{ color: theme === 'dark' ? '#f8fafc' : '#0f172a' }}>
+                        {user?.nom}
+                      </div>
+                      <div className="text-muted small text-truncate" style={{ fontSize: '0.72rem' }}>
+                        {user?.email}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="d-flex flex-wrap gap-1 align-items-center mt-1">
+                    <span className="badge bg-primary text-white" style={{ fontSize: '0.65rem' }}>
+                      {user?.fonction || (hasRole('ROLE_ADMIN') ? 'Administrateur' : 'Agent recenseur')}
+                    </span>
+                    {(user?.province || user?.region) && (
+                      <span className="badge bg-secondary text-white" style={{ fontSize: '0.65rem' }}>
+                        {user.region ? `${user.region}` : user.province}
+                      </span>
+                    )}
+                  </div>
                 </li>
                 <li>
                   <button

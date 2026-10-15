@@ -7,6 +7,7 @@ import type { User, UserPayload } from '../api/types'
 import { useAuth } from '../auth/AuthContext'
 import Icon from '../components/Icon'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import BackButton from '../components/BackButton'
 
 interface FormState {
   email: string
@@ -139,20 +140,23 @@ export default function UsersPage() {
     <div className="d-flex flex-column gap-3">
       {/* Header */}
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <span
-              className="badge bg-dark bg-opacity-10 text-dark fw-semibold px-2 py-1 rounded"
-              style={{ fontSize: '0.75rem' }}
-            >
-              Administration Système
-            </span>
-            <span className="text-muted small">Comptes d'accès & permissions</span>
+        <div className="d-flex align-items-center gap-3">
+          <BackButton />
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Administration Système
+              </span>
+              <span className="text-muted small">Comptes d'accès & permissions</span>
+            </div>
+            <h1 className="h4 fw-bold text-dark mb-1">Gestion des Utilisateurs</h1>
+            <p className="text-secondary small mb-0">
+              Administrateurs et agents de terrain habilités pour le recensement
+            </p>
           </div>
-          <h1 className="h4 fw-bold text-dark mb-1">Gestion des Utilisateurs</h1>
-          <p className="text-secondary small mb-0">
-            Administrateurs et agents de terrain habilités pour le recensement
-          </p>
         </div>
         <Button variant="success" size="sm" onClick={openCreate}>
           <Icon name="plus" size={16} className="me-1" /> Nouvel utilisateur
@@ -185,13 +189,33 @@ export default function UsersPage() {
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
-                    <td className="fw-semibold text-dark">
-                      {item.nom}
-                      {item.id === current?.id && (
-                        <span className="badge bg-primary bg-opacity-10 text-primary ms-2" style={{ fontSize: '0.7rem' }}>
-                          Vous
-                        </span>
-                      )}
+                    <td>
+                      <div className="d-flex align-items-center gap-2">
+                        <div
+                          className="rounded-circle overflow-hidden d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                          style={{ width: 32, height: 32, backgroundColor: '#0284c7', fontSize: '0.8rem' }}
+                        >
+                          {item.photo ? (
+                            <img src={item.photo} alt={item.nom} className="w-100 h-100 object-fit-cover" />
+                          ) : (
+                            item.nom.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <div className="fw-semibold text-dark">
+                            {item.nom}
+                            {item.id === current?.id && (
+                              <span className="badge bg-primary bg-opacity-10 text-primary ms-1" style={{ fontSize: '0.65rem' }}>
+                                Vous
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-muted small" style={{ fontSize: '0.72rem' }}>
+                            {item.fonction || (item.roles.includes('ROLE_ADMIN') ? 'Superviseur' : 'Agent')}
+                            {item.province ? ` · ${item.province}` : ''}
+                          </div>
+                        </div>
+                      </div>
                     </td>
                     <td className="font-mono text-secondary small">{item.email}</td>
                     <td>

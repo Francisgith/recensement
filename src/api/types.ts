@@ -43,6 +43,12 @@ export interface User {
   roles: string[]
   actif: boolean
   createdAt: string
+  photo?: string | null
+  telephone?: string | null
+  fonction?: string | null
+  province?: string | null
+  region?: string | null
+  district?: string | null
 }
 
 export interface Overview {
@@ -171,6 +177,24 @@ export interface UserPayload {
   roles: string[]
   password?: string
   actif?: boolean
+  photo?: string | null
+  telephone?: string | null
+  fonction?: string | null
+  province?: string | null
+  region?: string | null
+  district?: string | null
+}
+
+export interface RegisterPayload {
+  email: string
+  nom: string
+  password: string
+  photo?: string | null
+  telephone?: string | null
+  fonction?: string | null
+  province?: string | null
+  region?: string | null
+  district?: string | null
 }
 
 export const SEXE_OPTIONS: { value: Sexe; label: string }[] = [

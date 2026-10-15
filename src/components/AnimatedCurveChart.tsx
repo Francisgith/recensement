@@ -266,7 +266,7 @@ export default function AnimatedCurveChart({
             <div className="d-flex p-1 bg-light rounded-3 border">
               <button
                 type="button"
-                className={`btn btn-sm border-0 ${viewMode === 'all' ? 'bg-white shadow-sm fw-semibold text-primary' : 'text-secondary'}`}
+                className={`btn btn-sm border-0 ${viewMode === 'all' ? 'bg-primary text-white shadow-sm fw-semibold' : 'text-secondary'}`}
                 style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
                 onClick={() => {
                   setViewMode('all')
@@ -277,7 +277,7 @@ export default function AnimatedCurveChart({
               </button>
               <button
                 type="button"
-                className={`btn btn-sm border-0 ${viewMode === 'sexes' ? 'bg-white shadow-sm fw-semibold text-primary' : 'text-secondary'}`}
+                className={`btn btn-sm border-0 ${viewMode === 'sexes' ? 'bg-primary text-white shadow-sm fw-semibold' : 'text-secondary'}`}
                 style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
                 onClick={() => {
                   setViewMode('sexes')
@@ -288,7 +288,7 @@ export default function AnimatedCurveChart({
               </button>
               <button
                 type="button"
-                className={`btn btn-sm border-0 ${viewMode === 'total' ? 'bg-white shadow-sm fw-semibold text-primary' : 'text-secondary'}`}
+                className={`btn btn-sm border-0 ${viewMode === 'total' ? 'bg-primary text-white shadow-sm fw-semibold' : 'text-secondary'}`}
                 style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
                 onClick={() => {
                   setViewMode('total')
@@ -300,7 +300,7 @@ export default function AnimatedCurveChart({
               {showCumulativeOption && (
                 <button
                   type="button"
-                  className={`btn btn-sm border-0 ${viewMode === 'cumulative' ? 'bg-white shadow-sm fw-semibold text-primary' : 'text-secondary'}`}
+                  className={`btn btn-sm border-0 ${viewMode === 'cumulative' ? 'bg-primary text-white shadow-sm fw-semibold' : 'text-secondary'}`}
                   style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}
                   onClick={() => {
                     setViewMode('cumulative')

@@ -15,6 +15,7 @@ import {
 import Icon from '../components/Icon'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import PhotoUpload from '../components/PhotoUpload'
+import BackButton from '../components/BackButton'
 
 interface FormState {
   nom: string
@@ -218,20 +219,23 @@ export default function IndividusPage() {
     <div className="d-flex flex-column gap-3">
       {/* Header */}
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <span
-              className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
-              style={{ fontSize: '0.75rem' }}
-            >
-              Registre des Ménages
-            </span>
-            <span className="text-muted small">Raim(na renim-)-pianakavina</span>
+        <div className="d-flex align-items-center gap-3">
+          <BackButton />
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Registre des Ménages
+              </span>
+              <span className="text-muted small">Raim(na renim-)-pianakavina</span>
+            </div>
+            <h1 className="h4 fw-bold text-dark mb-1">Chefs de Famille</h1>
+            <p className="text-secondary small mb-0">
+              Gestion des déclarants principaux et de leur localisation territoriale
+            </p>
           </div>
-          <h1 className="h4 fw-bold text-dark mb-1">Chefs de Famille</h1>
-          <p className="text-secondary small mb-0">
-            Gestion des déclarants principaux et de leur localisation territoriale
-          </p>
         </div>
         <Button variant="success" size="sm" onClick={openCreate}>
           <Icon name="plus" size={16} className="me-1" /> Nouveau chef de famille

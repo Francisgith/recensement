@@ -26,6 +26,12 @@ interface User {
   passwordHash: string
   actif: boolean
   createdAt: string
+  photo?: string | null
+  telephone?: string | null
+  fonction?: string | null
+  province?: string | null
+  region?: string | null
+  district?: string | null
 }
 
 interface Individu {
@@ -75,11 +81,16 @@ const users: User[] = [
   {
     id: 1,
     email: 'admin@recensement.mg',
-    nom: 'Administrateur',
+    nom: 'Administrateur National',
     roles: ['ROLE_ADMIN', 'ROLE_AGENT'],
     passwordHash: bcrypt.hashSync('Admin@1234', 10),
     actif: true,
     createdAt: new Date().toISOString(),
+    photo: null,
+    telephone: '0340000001',
+    fonction: 'Superviseur National',
+    province: 'Antananarivo',
+    region: 'Analamanga',
   },
   {
     id: 2,
@@ -89,6 +100,11 @@ const users: User[] = [
     passwordHash: bcrypt.hashSync('Agent@1234', 10),
     actif: true,
     createdAt: new Date().toISOString(),
+    photo: null,
+    telephone: '0340000002',
+    fonction: 'Agent recenseur',
+    province: 'Antananarivo',
+    region: 'Analamanga',
   },
 ]
 
@@ -501,6 +517,12 @@ function sanitizeUser(u: User) {
     roles: u.roles,
     actif: u.actif,
     createdAt: u.createdAt,
+    photo: u.photo ?? null,
+    telephone: u.telephone ?? null,
+    fonction: u.fonction ?? null,
+    province: u.province ?? null,
+    region: u.region ?? null,
+    district: u.district ?? null,
   }
 }
 
@@ -542,6 +564,62 @@ function requireAdmin(req: AuthRequest, res: express.Response, next: express.Nex
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' })
+})
+
+// Public Account Registration
+app.post('/api/register', (req, res) => {
+  const { email, nom, password, photo, telephone, fonction, province, region, district } = req.body || {}
+
+  if (!email || !nom || !password) {
+    return res.status(400).json({ message: 'Le nom complet, l\'adresse email et le mot de passe sont obligatoires.' })
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase()
+  if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+    return res.status(400).json({ message: 'Veuillez saisir une adresse email valide.' })
+  }
+
+  if (String(password).length < 6) {
+    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères.' })
+  }
+
+  if (users.some((u) => u.email.toLowerCase() === cleanEmail)) {
+    return res.status(409).json({ message: 'Un compte avec cette adresse email existe déjà.' })
+  }
+
+  const newUser: User = {
+    id: nextUserId++,
+    email: cleanEmail,
+    nom: String(nom).trim(),
+    roles: ['ROLE_AGENT'],
+    passwordHash: bcrypt.hashSync(String(password), 10),
+    actif: true,
+    createdAt: new Date().toISOString(),
+    photo: photo ? String(photo) : null,
+    telephone: telephone ? String(telephone).trim() : null,
+    fonction: fonction ? String(fonction).trim() : 'Agent de terrain',
+    province: province ? String(province).trim() : null,
+    region: region ? String(region).trim() : null,
+    district: district ? String(district).trim() : null,
+  }
+
+  users.push(newUser)
+
+  const token = jwt.sign(
+    {
+      id: newUser.id,
+      email: newUser.email,
+      roles: newUser.roles,
+    },
+    JWT_SECRET,
+    { expiresIn: '24h' },
+  )
+
+  res.status(201).json({
+    message: 'Compte créé avec succès !',
+    token,
+    user: sanitizeUser(newUser),
+  })
 })
 
 // Login
@@ -1341,7 +1419,7 @@ app.get('/api/users', requireAuth, requireAdmin, (_req, res) => {
 })
 
 app.post('/api/users', requireAuth, requireAdmin, (req, res) => {
-  const { email, nom, roles, password, actif } = req.body || {}
+  const { email, nom, roles, password, actif, photo, telephone, fonction, province, region, district } = req.body || {}
   if (!email || !nom || !password) {
     return res.status(400).json({ message: 'Email, nom et mot de passe sont requis.' })
   }
@@ -1359,6 +1437,12 @@ app.post('/api/users', requireAuth, requireAdmin, (req, res) => {
     passwordHash: bcrypt.hashSync(String(password), 10),
     actif: actif !== undefined ? Boolean(actif) : true,
     createdAt: new Date().toISOString(),
+    photo: photo ? String(photo) : null,
+    telephone: telephone ? String(telephone).trim() : null,
+    fonction: fonction ? String(fonction).trim() : null,
+    province: province ? String(province).trim() : null,
+    region: region ? String(region).trim() : null,
+    district: district ? String(district).trim() : null,
   }
 
   users.push(newUser)
@@ -1372,7 +1456,7 @@ app.put('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
     return res.status(404).json({ message: 'Utilisateur introuvable.' })
   }
 
-  const { email, nom, roles, password, actif } = req.body || {}
+  const { email, nom, roles, password, actif, photo, telephone, fonction, province, region, district } = req.body || {}
 
   if (email && email.toLowerCase() !== user.email.toLowerCase()) {
     const conflict = users.find((u) => u.email.toLowerCase() === email.toLowerCase() && u.id !== id)
@@ -1385,6 +1469,12 @@ app.put('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
   if (nom !== undefined) user.nom = String(nom).trim()
   if (roles !== undefined && Array.isArray(roles)) user.roles = roles
   if (actif !== undefined) user.actif = Boolean(actif)
+  if (photo !== undefined) user.photo = photo ? String(photo) : null
+  if (telephone !== undefined) user.telephone = telephone ? String(telephone).trim() : null
+  if (fonction !== undefined) user.fonction = fonction ? String(fonction).trim() : null
+  if (province !== undefined) user.province = province ? String(province).trim() : null
+  if (region !== undefined) user.region = region ? String(region).trim() : null
+  if (district !== undefined) user.district = district ? String(district).trim() : null
   if (password && String(password).trim().length > 0) {
     user.passwordHash = bcrypt.hashSync(String(password).trim(), 10)
   }
@@ -1422,7 +1512,7 @@ async function startServer() {
   } else {
     const distPath = path.resolve(__dirname, 'dist')
     app.use(express.static(distPath))
-    app.get('*', (_req, res) => {
+    app.use((_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'))
     })
   }

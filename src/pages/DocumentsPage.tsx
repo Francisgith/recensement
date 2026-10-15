@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 import { individuApi, membreApi } from '../api/resources'
 import type { Individu, MembreFamille } from '../api/types'
-import { Button, Card, Col, Form, Row } from '../components/ui'
+import { Alert, Button, Card, Col, Form, Row, Spinner } from '../components/ui'
 import Icon from '../components/Icon'
+import BackButton from '../components/BackButton'
 
 type DocumentType = 'residence' | 'cin' | 'naissance'
 
@@ -148,8 +151,144 @@ export default function DocumentsPage() {
     if (found) applyCitizen(found)
   }
 
+  const documentRef = useRef<HTMLDivElement>(null)
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const [exportSuccessMsg, setExportSuccessMsg] = useState('')
+  const [exportErrorMsg, setExportErrorMsg] = useState('')
+
+  // RELIABLE PRINT HANDLER (Works inside iframes & standard browsers)
   const handlePrint = () => {
-    window.print()
+    try {
+      if (!documentRef.current) {
+        window.print()
+        return
+      }
+
+      // Try creating an isolated hidden print iframe for pristine A4 formatting
+      let printFrame = document.getElementById('official-doc-print-frame') as HTMLIFrameElement | null
+      if (!printFrame) {
+        printFrame = document.createElement('iframe')
+        printFrame.id = 'official-doc-print-frame'
+        printFrame.style.position = 'fixed'
+        printFrame.style.right = '0'
+        printFrame.style.bottom = '0'
+        printFrame.style.width = '0'
+        printFrame.style.height = '0'
+        printFrame.style.border = '0'
+        document.body.appendChild(printFrame)
+      }
+
+      const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document
+      if (frameDoc) {
+        frameDoc.open()
+        frameDoc.write(`
+          <!DOCTYPE html>
+          <html lang="mg">
+            <head>
+              <meta charset="utf-8">
+              <title>${docType.toUpperCase()} - ${nom}</title>
+              <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+              <style>
+                @page {
+                  size: ${docType === 'cin' ? 'A5 landscape' : 'A4 portrait'};
+                  margin: 10mm;
+                }
+                body {
+                  background-color: #ffffff !important;
+                  color: #0f172a !important;
+                  margin: 0;
+                  padding: 15px;
+                  font-family: serif;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                .print-area {
+                  max-width: 100% !important;
+                  width: 100% !important;
+                  box-shadow: none !important;
+                  border: none !important;
+                  margin: 0 auto;
+                }
+              </style>
+            </head>
+            <body>
+              ${documentRef.current.innerHTML}
+            </body>
+          </html>
+        `)
+        frameDoc.close()
+        setTimeout(() => {
+          printFrame?.contentWindow?.focus()
+          printFrame?.contentWindow?.print()
+        }, 400)
+      } else {
+        window.print()
+      }
+    } catch (e) {
+      console.warn('Iframe print fallback triggered standard window.print:', e)
+      window.print()
+    }
+  }
+
+  // DIRECT PDF EXPORT HANDLER (Generates and downloads true .pdf file)
+  const handleExportPDF = async () => {
+    if (!documentRef.current) return
+    setExportingPdf(true)
+    setExportErrorMsg('')
+    try {
+      const element = documentRef.current
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      })
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98)
+      const cleanNom = (nom || 'Citoyen').replace(/[^a-zA-Z0-9]/g, '_')
+
+      if (docType === 'cin') {
+        // Landscape card layout for CIN
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'mm',
+          format: 'a5',
+        })
+        const pdfWidth = pdf.internal.pageSize.getWidth()
+        const pdfHeight = pdf.internal.pageSize.getHeight()
+        const imgProps = pdf.getImageProperties(imgData)
+        const ratio = Math.min((pdfWidth - 20) / imgProps.width, (pdfHeight - 20) / imgProps.height)
+        const renderW = imgProps.width * ratio
+        const renderH = imgProps.height * ratio
+        const posX = (pdfWidth - renderW) / 2
+        const posY = (pdfHeight - renderH) / 2
+        pdf.addImage(imgData, 'JPEG', posX, posY, renderW, renderH)
+        pdf.save(`CIN_${cleanNom}.pdf`)
+      } else {
+        // Portrait A4 layout for Certificat de Residence and Acte de Naissance
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const pdfWidth = pdf.internal.pageSize.getWidth()
+        const pdfHeight = pdf.internal.pageSize.getHeight()
+        const imgProps = pdf.getImageProperties(imgData)
+        const ratio = Math.min((pdfWidth - 20) / imgProps.width, (pdfHeight - 20) / imgProps.height)
+        const renderW = imgProps.width * ratio
+        const renderH = imgProps.height * ratio
+        const posX = (pdfWidth - renderW) / 2
+        const posY = 10
+        pdf.addImage(imgData, 'JPEG', posX, posY, renderW, renderH)
+        const docPrefix = docType === 'residence' ? 'Certificat_Residence' : 'Acte_Naissance'
+        pdf.save(`${docPrefix}_${cleanNom}.pdf`)
+      }
+
+      setExportSuccessMsg('Document officiel téléchargé en format PDF avec succès !')
+      setTimeout(() => setExportSuccessMsg(''), 5000)
+    } catch (err) {
+      console.error('Failed to export PDF:', err)
+      setExportErrorMsg('Erreur lors de la génération du PDF. Tentative via impression...')
+      setTimeout(() => handlePrint(), 800)
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   // Calculate simulated birth year
@@ -159,29 +298,71 @@ export default function DocumentsPage() {
     <div className="d-flex flex-column gap-4">
       {/* Page Header (No Print) */}
       <div className="no-print d-flex flex-wrap justify-content-between align-items-center gap-3">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <span
-              className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
-              style={{ fontSize: '0.75rem' }}
-            >
-              Fanamasinam-panjakana
-            </span>
-            <span className="text-muted small">État Civil &amp; Actes d'Identification</span>
+        <div className="d-flex align-items-center gap-3">
+          <BackButton />
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Fanamasinam-panjakana
+              </span>
+              <span className="text-muted small">État Civil &amp; Actes d'Identification</span>
+            </div>
+            <h1 className="h4 fw-bold text-dark mb-1">Génération de Documents Officiels</h1>
+            <p className="text-secondary small mb-0">
+              Établissement instantané de Certificat de Résidence, Carte d'Identité (CIN) et Copie d'Acte de Naissance
+            </p>
           </div>
-          <h1 className="h4 fw-bold text-dark mb-1">Génération de Documents Officiels</h1>
-          <p className="text-secondary small mb-0">
-            Établissement instantané de Certificat de Résidence, Carte d'Identité (CIN) et Copie d'Acte de Naissance
-          </p>
         </div>
 
         <div className="d-flex align-items-center gap-2">
-          <Button variant="primary" size="sm" onClick={handlePrint}>
-            <Icon name="printer" size={16} className="me-1" />
-            Imprimer / Exporter PDF
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleExportPDF}
+            disabled={exportingPdf}
+            className="d-flex align-items-center gap-1.5 shadow-sm"
+          >
+            {exportingPdf ? (
+              <>
+                <Spinner size="sm" className="me-1" />
+                <span>Génération PDF...</span>
+              </>
+            ) : (
+              <>
+                <Icon name="download" size={15} />
+                <span>Télécharger PDF</span>
+              </>
+            )}
+          </Button>
+
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={handlePrint}
+            className="d-flex align-items-center gap-1.5"
+          >
+            <Icon name="printer" size={15} />
+            <span>Imprimer</span>
           </Button>
         </div>
       </div>
+
+      {exportSuccessMsg && (
+        <Alert variant="success" className="no-print py-2 d-flex align-items-center gap-2 shadow-xs">
+          <Icon name="check" size={16} />
+          <span>{exportSuccessMsg}</span>
+        </Alert>
+      )}
+
+      {exportErrorMsg && (
+        <Alert variant="warning" className="no-print py-2 d-flex align-items-center gap-2 shadow-xs">
+          <Icon name="info" size={16} />
+          <span>{exportErrorMsg}</span>
+        </Alert>
+      )}
 
       {/* Configuration & Selection Panel (No Print) */}
       <Card className="no-print border-0 shadow-sm bg-white">
@@ -198,8 +379,8 @@ export default function DocumentsPage() {
                   onClick={() => setDocType('residence')}
                   className={`btn btn-sm flex-fill border-0 ${
                     docType === 'residence'
-                      ? 'bg-white text-primary shadow-sm fw-semibold'
-                      : 'text-secondary hover:text-dark'
+                      ? 'bg-primary text-white shadow-sm fw-semibold'
+                      : 'text-secondary'
                   }`}
                   style={{ fontSize: '0.78rem' }}
                 >
@@ -210,8 +391,8 @@ export default function DocumentsPage() {
                   onClick={() => setDocType('cin')}
                   className={`btn btn-sm flex-fill border-0 ${
                     docType === 'cin'
-                      ? 'bg-white text-primary shadow-sm fw-semibold'
-                      : 'text-secondary hover:text-dark'
+                      ? 'bg-primary text-white shadow-sm fw-semibold'
+                      : 'text-secondary'
                   }`}
                   style={{ fontSize: '0.78rem' }}
                 >
@@ -222,8 +403,8 @@ export default function DocumentsPage() {
                   onClick={() => setDocType('naissance')}
                   className={`btn btn-sm flex-fill border-0 ${
                     docType === 'naissance'
-                      ? 'bg-white text-primary shadow-sm fw-semibold'
-                      : 'text-secondary hover:text-dark'
+                      ? 'bg-primary text-white shadow-sm fw-semibold'
+                      : 'text-secondary'
                   }`}
                   style={{ fontSize: '0.78rem' }}
                 >
@@ -388,8 +569,8 @@ export default function DocumentsPage() {
         </Card.Body>
       </Card>
 
-      {/* DOCUMENT PREVIEW CONTAINER (Ready for Print) */}
-      <div className="d-flex justify-content-center">
+      {/* DOCUMENT PREVIEW CONTAINER (Ready for Print & PDF Export) */}
+      <div ref={documentRef} id="document-print-target" className="d-flex justify-content-center">
         {/* DOCUMENT 1: CERTIFICAT DE RÉSIDENCE */}
         {docType === 'residence' && (
           <div

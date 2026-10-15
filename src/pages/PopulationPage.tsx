@@ -7,6 +7,7 @@ import type { PopulationResult, Sexe } from '../api/types'
 import { SEXE_OPTIONS, sexeLabel } from '../api/types'
 import { getAllProvinces, getRegionsForProvince } from '../data/madagascarGeo'
 import Icon from '../components/Icon'
+import BackButton from '../components/BackButton'
 
 interface Preset {
   label: string
@@ -132,20 +133,23 @@ export default function PopulationPage() {
     <div className="d-flex flex-column gap-3">
       {/* Header */}
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <div className="d-flex align-items-center gap-2 mb-1">
-            <span
-              className="badge bg-dark bg-opacity-10 text-dark fw-semibold px-2 py-1 rounded"
-              style={{ fontSize: '0.75rem' }}
-            >
-              Fikarohana
-            </span>
-            <span className="text-muted small">Registres combinés chefs et membres</span>
+        <div className="d-flex align-items-center gap-3">
+          <BackButton />
+          <div>
+            <div className="d-flex align-items-center gap-2 mb-1">
+              <span
+                className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-1 rounded"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Fikarohana
+              </span>
+              <span className="text-muted small">Registres combinés chefs et membres</span>
+            </div>
+            <h1 className="h4 fw-bold text-dark mb-1">Recherche dans la Population</h1>
+            <p className="text-secondary small mb-0">
+              Filtres démographiques multicritères : âge, sexe, foyer et province
+            </p>
           </div>
-          <h1 className="h4 fw-bold text-dark mb-1">Recherche dans la Population</h1>
-          <p className="text-secondary small mb-0">
-            Filtres démographiques multicritères : âge, sexe, foyer et province
-          </p>
         </div>
 
         <Button

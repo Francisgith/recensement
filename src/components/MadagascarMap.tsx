@@ -1,384 +1,61 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import Icon from './Icon'
-import { getCommunesForDistrict } from '../data/madagascarGeo'
+import {
+  getAllProvinces,
+  getRegionsForProvince,
+  getCommunesForDistrict,
+} from '../data/madagascarGeo'
+import {
+  REGIONS_GEO,
+  PROVINCE_THEMES,
+} from '../data/madagascarMapData'
+import type { RegionGeoData } from '../data/madagascarMapData'
 import type { TerritorialUnit } from '../api/types'
+import { useTheme } from '../context/ThemeContext'
 
-export interface RegionGeoData {
-  id: string
-  nom: string
-  province: string
-  chefLieu: string
-  path: string
-  center: { x: number; y: number }
-  districts: {
-    nom: string
-    x: number
-    y: number
-    isChefLieu?: boolean
-  }[]
+// Compute bounding box from SVG path coordinates
+function getPathBoundingBox(pathStr: string, pad = 35) {
+  const numbers = pathStr.match(/-?\d+(\.\d+)?/g)?.map(Number) || []
+  if (numbers.length < 2) {
+    return { minX: 70, minY: 20, width: 420, height: 750 }
+  }
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+
+  for (let i = 0; i < numbers.length; i += 2) {
+    const x = numbers[i]
+    const y = numbers[i + 1]
+    if (x !== undefined && y !== undefined) {
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+  }
+
+  const w = maxX - minX
+  const h = maxY - minY
+  const maxDim = Math.max(w, h)
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  const viewSize = Math.max(maxDim + pad * 2, 130)
+
+  return {
+    minX: Math.round(cx - viewSize / 2),
+    minY: Math.round(cy - viewSize / 2),
+    width: Math.round(viewSize),
+    height: Math.round(viewSize),
+  }
 }
-
-const REGIONS_GEO: RegionGeoData[] = [
-  // --- PROVINCE ANTSIRANANA ---
-  {
-    id: 'diana',
-    nom: 'Diana',
-    province: 'Antsiranana',
-    chefLieu: 'Antsiranana (Diego-Suarez)',
-    path: 'M 370 45 L 395 70 L 400 110 L 370 145 L 330 135 L 320 95 L 340 65 Z',
-    center: { x: 360, y: 95 },
-    districts: [
-      { nom: 'Antsiranana I', x: 380, y: 70, isChefLieu: true },
-      { nom: 'Antsiranana II', x: 365, y: 85 },
-      { nom: 'Ambilobe', x: 350, y: 115 },
-      { nom: 'Ambanja', x: 335, y: 125 },
-      { nom: 'Nosy Be', x: 310, y: 110 },
-    ],
-  },
-  {
-    id: 'sava',
-    nom: 'Sava',
-    province: 'Antsiranana',
-    chefLieu: 'Sambava',
-    path: 'M 395 70 L 440 120 L 445 190 L 415 220 L 370 185 L 370 145 L 400 110 Z',
-    center: { x: 410, y: 150 },
-    districts: [
-      { nom: 'Sambava', x: 425, y: 145, isChefLieu: true },
-      { nom: 'Antalaha', x: 435, y: 175 },
-      { nom: 'Vohemar', x: 420, y: 110 },
-      { nom: 'Andapa', x: 390, y: 160 },
-    ],
-  },
-
-  // --- PROVINCE MAHAJANGA ---
-  {
-    id: 'sofia',
-    nom: 'Sofia',
-    province: 'Mahajanga',
-    chefLieu: 'Antsohihy',
-    path: 'M 330 135 L 370 145 L 370 185 L 360 250 L 300 260 L 260 215 L 285 160 Z',
-    center: { x: 315, y: 200 },
-    districts: [
-      { nom: 'Antsohihy', x: 300, y: 180, isChefLieu: true },
-      { nom: 'Analalava', x: 275, y: 170 },
-      { nom: 'Bealanana', x: 340, y: 170 },
-      { nom: 'Befandriana Nord', x: 345, y: 205 },
-      { nom: 'Mandritsara', x: 340, y: 235 },
-      { nom: 'Mampikony', x: 295, y: 220 },
-      { nom: 'Port-Bergé', x: 315, y: 205 },
-    ],
-  },
-  {
-    id: 'boeny',
-    nom: 'Boeny',
-    province: 'Mahajanga',
-    chefLieu: 'Mahajanga (Majunga)',
-    path: 'M 260 215 L 300 260 L 280 295 L 220 280 L 190 230 L 225 210 Z',
-    center: { x: 240, y: 250 },
-    districts: [
-      { nom: 'Mahajanga I', x: 220, y: 225, isChefLieu: true },
-      { nom: 'Mahajanga II', x: 230, y: 240 },
-      { nom: 'Ambato-Boeni', x: 270, y: 265 },
-      { nom: 'Marovoay', x: 250, y: 255 },
-      { nom: 'Mitsinjo', x: 205, y: 250 },
-      { nom: 'Soalala', x: 195, y: 265 },
-    ],
-  },
-  {
-    id: 'betsiboka',
-    nom: 'Betsiboka',
-    province: 'Mahajanga',
-    chefLieu: 'Maevatanana',
-    path: 'M 300 260 L 345 260 L 335 320 L 280 325 L 280 295 Z',
-    center: { x: 310, y: 290 },
-    districts: [
-      { nom: 'Maevatanana', x: 295, y: 285, isChefLieu: true },
-      { nom: 'Kandreho', x: 275, y: 305 },
-      { nom: 'Tsaratanana', x: 330, y: 295 },
-    ],
-  },
-  {
-    id: 'melaky',
-    nom: 'Melaky',
-    province: 'Mahajanga',
-    chefLieu: 'Maintirano',
-    path: 'M 190 230 L 220 280 L 210 365 L 140 360 L 150 280 Z',
-    center: { x: 175, y: 315 },
-    districts: [
-      { nom: 'Maintirano', x: 155, y: 320, isChefLieu: true },
-      { nom: 'Ambatomainty', x: 195, y: 325 },
-      { nom: 'Antsalova', x: 165, y: 350 },
-      { nom: 'Besalampy', x: 170, y: 275 },
-      { nom: 'Morafenobe', x: 185, y: 305 },
-    ],
-  },
-
-  // --- PROVINCE TOAMASINA ---
-  {
-    id: 'analanjirofo',
-    nom: 'Analanjirofo',
-    province: 'Toamasina',
-    chefLieu: 'Fénérive-Est',
-    path: 'M 415 220 L 445 190 L 455 250 L 420 330 L 375 310 L 370 250 Z',
-    center: { x: 415, y: 270 },
-    districts: [
-      { nom: 'Fénérive-Est', x: 410, y: 295, isChefLieu: true },
-      { nom: 'Mananara Nord', x: 430, y: 245 },
-      { nom: 'Maroantsetra', x: 420, y: 215 },
-      { nom: 'Sainte-Marie', x: 445, y: 285 },
-      { nom: 'Soanierana Ivongo', x: 415, y: 275 },
-      { nom: 'Vavatenina', x: 395, y: 310 },
-    ],
-  },
-  {
-    id: 'alaotra-mangoro',
-    nom: 'Alaotra-Mangoro',
-    province: 'Toamasina',
-    chefLieu: 'Ambatondrazaka',
-    path: 'M 345 260 L 370 250 L 375 310 L 385 385 L 340 395 L 335 320 Z',
-    center: { x: 360, y: 330 },
-    districts: [
-      { nom: 'Ambatondrazaka', x: 360, y: 310, isChefLieu: true },
-      { nom: 'Amparafaravola', x: 345, y: 300 },
-      { nom: 'Andilamena', x: 360, y: 270 },
-      { nom: 'Anosibe An\'ala', x: 365, y: 380 },
-      { nom: 'Moramanga', x: 355, y: 360 },
-    ],
-  },
-  {
-    id: 'atsinanana',
-    nom: 'Atsinanana',
-    province: 'Toamasina',
-    chefLieu: 'Toamasina (Tamatave)',
-    path: 'M 420 330 L 435 380 L 405 470 L 370 460 L 385 385 L 375 310 Z',
-    center: { x: 405, y: 400 },
-    districts: [
-      { nom: 'Toamasina I', x: 420, y: 355, isChefLieu: true },
-      { nom: 'Toamasina II', x: 415, y: 370 },
-      { nom: 'Brickaville', x: 400, y: 385 },
-      { nom: 'Mahanoro', x: 385, y: 445 },
-      { nom: 'Marolambo', x: 365, y: 435 },
-      { nom: 'Vatomandry', x: 395, y: 420 },
-      { nom: 'Antanambao Manampotsy', x: 380, y: 405 },
-    ],
-  },
-
-  // --- PROVINCE ANTANANARIVO ---
-  {
-    id: 'analamanga',
-    nom: 'Analamanga',
-    province: 'Antananarivo',
-    chefLieu: 'Antananarivo (Tana)',
-    path: 'M 280 325 L 335 320 L 340 395 L 300 405 L 275 365 Z',
-    center: { x: 310, y: 360 },
-    districts: [
-      { nom: 'Antananarivo Renivohitra', x: 312, y: 360, isChefLieu: true },
-      { nom: 'Ambohidratrimo', x: 305, y: 348 },
-      { nom: 'Andramasina', x: 318, y: 385 },
-      { nom: 'Anjozorobe', x: 325, y: 330 },
-      { nom: 'Ankazobe', x: 290, y: 335 },
-      { nom: 'Manjakandriana', x: 328, y: 365 },
-    ],
-  },
-  {
-    id: 'itasy',
-    nom: 'Itasy',
-    province: 'Antananarivo',
-    chefLieu: 'Miarinarivo',
-    path: 'M 275 365 L 300 405 L 290 425 L 265 420 Z',
-    center: { x: 280, y: 395 },
-    districts: [
-      { nom: 'Miarinarivo', x: 280, y: 390, isChefLieu: true },
-      { nom: 'Arivonimamo', x: 290, y: 385 },
-      { nom: 'Soavinandriana', x: 275, y: 410 },
-    ],
-  },
-  {
-    id: 'bongolava',
-    nom: 'Bongolava',
-    province: 'Antananarivo',
-    chefLieu: 'Tsiroanomandidy',
-    path: 'M 210 365 L 275 365 L 265 420 L 205 410 Z',
-    center: { x: 240, y: 390 },
-    districts: [
-      { nom: 'Tsiroanomandidy', x: 245, y: 385, isChefLieu: true },
-      { nom: 'Fenoarivobe', x: 235, y: 365 },
-    ],
-  },
-  {
-    id: 'vakinankaratra',
-    nom: 'Vakinankaratra',
-    province: 'Antananarivo',
-    chefLieu: 'Antsirabe',
-    path: 'M 265 420 L 300 405 L 340 395 L 340 455 L 265 470 Z',
-    center: { x: 300, y: 435 },
-    districts: [
-      { nom: 'Antsirabe I', x: 305, y: 435, isChefLieu: true },
-      { nom: 'Antsirabe II', x: 315, y: 445 },
-      { nom: 'Ambatolampy', x: 310, y: 415 },
-      { nom: 'Betafo', x: 285, y: 435 },
-      { nom: 'Faratsiho', x: 280, y: 420 },
-      { nom: 'Mandoto', x: 265, y: 445 },
-    ],
-  },
-
-  // --- PROVINCE FIANARANTSOA ---
-  {
-    id: 'amoron-i-mania',
-    nom: "Amoron'i Mania",
-    province: 'Fianarantsoa',
-    chefLieu: 'Ambositra',
-    path: 'M 265 470 L 340 455 L 340 515 L 265 525 Z',
-    center: { x: 300, y: 490 },
-    districts: [
-      { nom: 'Ambositra', x: 305, y: 485, isChefLieu: true },
-      { nom: 'Ambatofinandrahana', x: 275, y: 495 },
-      { nom: 'Fandriana', x: 320, y: 475 },
-      { nom: 'Manandriana', x: 310, y: 505 },
-    ],
-  },
-  {
-    id: 'matsiatra-ambony',
-    nom: 'Matsiatra Ambony',
-    province: 'Fianarantsoa',
-    chefLieu: 'Fianarantsoa',
-    path: 'M 265 525 L 340 515 L 335 585 L 260 595 Z',
-    center: { x: 300, y: 555 },
-    districts: [
-      { nom: 'Fianarantsoa', x: 305, y: 545, isChefLieu: true },
-      { nom: 'Ambalavao', x: 295, y: 575 },
-      { nom: 'Ambohimahasoa', x: 305, y: 525 },
-      { nom: 'Ikalamavony', x: 270, y: 550 },
-      { nom: 'Isandra', x: 290, y: 545 },
-      { nom: 'Lalangina', x: 315, y: 555 },
-      { nom: 'Vohibato', x: 315, y: 570 },
-    ],
-  },
-  {
-    id: 'vatovavy',
-    nom: 'Vatovavy',
-    province: 'Fianarantsoa',
-    chefLieu: 'Mananjary',
-    path: 'M 370 460 L 405 470 L 385 540 L 340 515 L 340 455 Z',
-    center: { x: 365, y: 495 },
-    districts: [
-      { nom: 'Mananjary', x: 375, y: 500, isChefLieu: true },
-      { nom: 'Ifanadiana', x: 345, y: 510 },
-      { nom: 'Nosy Varika', x: 385, y: 475 },
-    ],
-  },
-  {
-    id: 'fitovinany',
-    nom: 'Fitovinany',
-    province: 'Fianarantsoa',
-    chefLieu: 'Manakara',
-    path: 'M 340 515 L 385 540 L 375 605 L 335 585 Z',
-    center: { x: 355, y: 560 },
-    districts: [
-      { nom: 'Manakara', x: 365, y: 565, isChefLieu: true },
-      { nom: 'Ikongo', x: 340, y: 575 },
-      { nom: 'Vohipeno', x: 360, y: 585 },
-    ],
-  },
-  {
-    id: 'atsimo-atsinanana',
-    nom: 'Atsimo-Atsinanana',
-    province: 'Fianarantsoa',
-    chefLieu: 'Farafangana',
-    path: 'M 335 585 L 375 605 L 355 690 L 315 675 Z',
-    center: { x: 345, y: 640 },
-    districts: [
-      { nom: 'Farafangana', x: 350, y: 620, isChefLieu: true },
-      { nom: 'Befotaka', x: 325, y: 670 },
-      { nom: 'Midongy du Sud', x: 325, y: 650 },
-      { nom: 'Vangaindrano', x: 345, y: 650 },
-      { nom: 'Vondrozo', x: 330, y: 620 },
-    ],
-  },
-  {
-    id: 'ihorombe',
-    nom: 'Ihorombe',
-    province: 'Fianarantsoa',
-    chefLieu: 'Ihosy',
-    path: 'M 260 595 L 335 585 L 315 675 L 255 655 Z',
-    center: { x: 285, y: 625 },
-    districts: [
-      { nom: 'Ihosy', x: 285, y: 620, isChefLieu: true },
-      { nom: 'Iakora', x: 305, y: 640 },
-      { nom: 'Ivohibe', x: 305, y: 610 },
-    ],
-  },
-
-  // --- PROVINCE TOLIARA ---
-  {
-    id: 'menabe',
-    nom: 'Menabe',
-    province: 'Toliara',
-    chefLieu: 'Morondava',
-    path: 'M 140 360 L 205 410 L 265 470 L 255 525 L 135 500 L 130 420 Z',
-    center: { x: 195, y: 445 },
-    districts: [
-      { nom: 'Morondava', x: 145, y: 450, isChefLieu: true },
-      { nom: 'Belo sur Tsiribihina', x: 155, y: 410 },
-      { nom: 'Mahabo', x: 185, y: 455 },
-      { nom: 'Manja', x: 165, y: 495 },
-      { nom: 'Miandrivazo', x: 220, y: 435 },
-    ],
-  },
-  {
-    id: 'atsimo-andrefana',
-    nom: 'Atsimo-Andrefana',
-    province: 'Toliara',
-    chefLieu: 'Toliara (Tuléar)',
-    path: 'M 135 500 L 255 525 L 260 595 L 255 655 L 220 680 L 140 640 L 115 570 Z',
-    center: { x: 185, y: 590 },
-    districts: [
-      { nom: 'Toliara I', x: 130, y: 595, isChefLieu: true },
-      { nom: 'Toliara II', x: 140, y: 575 },
-      { nom: 'Morombe', x: 125, y: 525 },
-      { nom: 'Sakaraha', x: 190, y: 570 },
-      { nom: 'Betioky Atsimo', x: 165, y: 625 },
-      { nom: 'Ampanihy Ouest', x: 180, y: 660 },
-      { nom: 'Ankazoabo', x: 180, y: 540 },
-      { nom: 'Benenitra', x: 215, y: 590 },
-      { nom: 'Beroroha', x: 200, y: 525 },
-    ],
-  },
-  {
-    id: 'androy',
-    nom: 'Androy',
-    province: 'Toliara',
-    chefLieu: 'Ambovombe',
-    path: 'M 220 680 L 255 655 L 295 675 L 275 750 L 205 745 Z',
-    center: { x: 245, y: 705 },
-    districts: [
-      { nom: 'Ambovombe-Androy', x: 260, y: 715, isChefLieu: true },
-      { nom: 'Bekily', x: 245, y: 675 },
-      { nom: 'Beloha', x: 220, y: 710 },
-      { nom: 'Tsihombe', x: 240, y: 735 },
-    ],
-  },
-  {
-    id: 'anosy',
-    nom: 'Anosy',
-    province: 'Toliara',
-    chefLieu: 'Taolagnaro (Fort-Dauphin)',
-    path: 'M 315 675 L 355 690 L 345 740 L 275 750 L 295 675 Z',
-    center: { x: 310, y: 710 },
-    districts: [
-      { nom: 'Taolagnaro', x: 330, y: 725, isChefLieu: true },
-      { nom: 'Amboasary Sud', x: 295, y: 725 },
-      { nom: 'Betroka', x: 290, y: 675 },
-    ],
-  },
-]
 
 interface MadagascarMapProps {
   selectedProvince?: string
   selectedRegion?: string
   selectedDistrict?: string
   onSelectProvince?: (province: string) => void
-  onSelectRegion?: (region: string) => void
+  onSelectRegion?: (region: string, province?: string) => void
   onSelectDistrict?: (district: string) => void
   onResetFilters?: () => void
   territorialUnits?: TerritorialUnit[]
@@ -394,252 +71,621 @@ export default function MadagascarMap({
   onResetFilters,
   territorialUnits = [],
 }: MadagascarMapProps) {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+
   const [hoveredRegion, setHoveredRegion] = useState<RegionGeoData | null>(null)
-  const [activeTab, setActiveTab] = useState<'carte' | 'precision'>('carte')
+  const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
+  const [selectedCommune, setSelectedCommune] = useState<string>('')
+  const [communeSearch, setCommuneSearch] = useState<string>('')
+  const [mapSearch, setMapSearch] = useState<string>('')
+  const [manualZoom, setManualZoom] = useState<'national' | 'region' | 'district' | null>(null)
+  const [manualStepTab, setManualStepTab] = useState<'province' | 'region' | 'district' | 'commune' | null>(null)
+
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Derived zoom mode and step tab based on selected entities and user override
+  const activeStepTab =
+    manualStepTab ??
+    (selectedDistrict
+      ? 'commune'
+      : selectedRegion
+        ? 'district'
+        : selectedProvince
+          ? 'region'
+          : 'province')
+
+  const zoomMode =
+    manualZoom ??
+    (selectedDistrict
+      ? 'district'
+      : selectedRegion
+        ? 'region'
+        : 'national')
+
+  const setActiveStepTab = (tab: 'province' | 'region' | 'district' | 'commune') => {
+    setManualStepTab(tab)
+  }
+
+  const setZoomMode = (zoom: 'national' | 'region' | 'district') => {
+    setManualZoom(zoom)
+  }
+
+  // Get population count for a region if territorial stats exist
+  const getRegionStats = (regionName: string) => {
+    return (
+      territorialUnits.find((u) => u.nom.toLowerCase() === regionName.toLowerCase()) || null
+    )
+  }
 
   // Find selected region geo object
   const activeRegionGeo = useMemo(() => {
     if (!selectedRegion) return null
     return (
-      REGIONS_GEO.find(
-        (r) => r.nom.toLowerCase() === selectedRegion.toLowerCase(),
-      ) || null
+      REGIONS_GEO.find((r) => r.nom.toLowerCase() === selectedRegion.toLowerCase()) || null
     )
   }, [selectedRegion])
 
-  // Get population count for a region if territorial stats exist
-  const getRegionStats = (regionName: string) => {
-    const unit = territorialUnits.find(
-      (u) => u.nom.toLowerCase() === regionName.toLowerCase(),
+  // Active district object in current region
+  const activeDistrictGeo = useMemo(() => {
+    if (!activeRegionGeo || !selectedDistrict) return null
+    return (
+      activeRegionGeo.districts.find(
+        (d) => d.nom.toLowerCase() === selectedDistrict.toLowerCase(),
+      ) || null
     )
-    return unit || null
-  }
+  }, [activeRegionGeo, selectedDistrict])
 
-  // Handle click on a region in map
+  // Communes list for the selected district
+  const allCommunes = useMemo(() => {
+    if (!selectedDistrict) return []
+    return getCommunesForDistrict(selectedDistrict)
+  }, [selectedDistrict])
+
+  // Filtered communes based on user search
+  const filteredCommunes = useMemo(() => {
+    if (!communeSearch.trim()) return allCommunes
+    const term = communeSearch.toLowerCase()
+    return allCommunes.filter((c) => c.toLowerCase().includes(term))
+  }, [allCommunes, communeSearch])
+
+  // Compute dynamic SVG viewBox
+  const currentViewBox = useMemo(() => {
+    const nationalView = '70 20 420 750'
+    if (zoomMode === 'national' || !activeRegionGeo) {
+      return nationalView
+    }
+
+    if (zoomMode === 'district' && activeDistrictGeo) {
+      // Zoom close to district coordinates
+      const boxSize = 85
+      const vx = Math.round(activeDistrictGeo.x - boxSize / 2)
+      const vy = Math.round(activeDistrictGeo.y - boxSize / 2)
+      return `${vx} ${vy} ${boxSize} ${boxSize}`
+    }
+
+    if (zoomMode === 'region' && activeRegionGeo) {
+      const bbox = getPathBoundingBox(activeRegionGeo.path, 30)
+      return `${bbox.minX} ${bbox.minY} ${bbox.width} ${bbox.height}`
+    }
+
+    return nationalView
+  }, [zoomMode, activeRegionGeo, activeDistrictGeo])
+
+  // Handle click on a region
   const handleRegionClick = (reg: RegionGeoData) => {
     if (onSelectProvince) onSelectProvince(reg.province)
-    if (onSelectRegion) onSelectRegion(reg.nom)
+    if (onSelectRegion) onSelectRegion(reg.nom, reg.province)
     if (onSelectDistrict) onSelectDistrict('')
-    setActiveTab('precision')
+    setSelectedCommune('')
+    setZoomMode('region')
+    setActiveStepTab('district')
   }
 
   // Handle click on a district
   const handleDistrictClick = (districtName: string) => {
     if (onSelectDistrict) onSelectDistrict(districtName)
+    setSelectedCommune('')
+    setZoomMode('district')
+    setActiveStepTab('commune')
   }
 
-  const communesForActiveDistrict = useMemo(() => {
-    if (!selectedDistrict) return []
-    return getCommunesForDistrict(selectedDistrict)
-  }, [selectedDistrict])
+  // Global search handler (jumps directly to province, region, district or commune)
+  const handleGlobalSearch = (val: string) => {
+    setMapSearch(val)
+    if (!val.trim()) return
+    const term = val.trim().toLowerCase()
+
+    // 1. Match Region
+    const matchedReg = REGIONS_GEO.find(
+      (r) => r.nom.toLowerCase().includes(term) || r.chefLieu.toLowerCase().includes(term),
+    )
+    if (matchedReg) {
+      handleRegionClick(matchedReg)
+      return
+    }
+
+    // 2. Match District
+    for (const reg of REGIONS_GEO) {
+      const dist = reg.districts.find((d) => d.nom.toLowerCase().includes(term))
+      if (dist) {
+        handleRegionClick(reg)
+        handleDistrictClick(dist.nom)
+        return
+      }
+    }
+
+    // 3. Match Province
+    const provinces = getAllProvinces()
+    const matchedProv = provinces.find((p) => p.toLowerCase().includes(term))
+    if (matchedProv) {
+      if (onSelectProvince) onSelectProvince(matchedProv)
+      if (onSelectRegion) onSelectRegion('')
+      if (onSelectDistrict) onSelectDistrict('')
+      setZoomMode('national')
+    }
+  }
+
+  // Reset to national view
+  const handleResetToNational = () => {
+    if (onResetFilters) onResetFilters()
+    setSelectedCommune('')
+    setCommuneSearch('')
+    setMapSearch('')
+    setZoomMode('national')
+    setActiveStepTab('province')
+  }
+
+  // Palette constants
+  const oceanBg = isDark ? '#070f1e' : '#f0f9ff'
+  const oceanBorder = isDark ? '#1e293b' : '#bae6fd'
+  const graticuleStroke = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(14, 116, 144, 0.08)'
 
   return (
-    <div className="card border-0 shadow-sm bg-white overflow-hidden mb-4">
-      {/* Map Header with breadcrumbs and view switcher */}
-      <div className="card-header bg-white border-bottom p-3 p-md-4">
-        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div
+      className="card border-0 shadow-sm overflow-hidden mb-4 transition-all"
+      style={{
+        backgroundColor: isDark ? '#0f172a' : '#ffffff',
+        border: isDark ? '1px solid #1e293b' : '1px solid #e2e8f0',
+      }}
+    >
+      {/* 1. TOP HEADER & INTERACTIVE NAVIGATION BAR */}
+      <div
+        className="card-header border-bottom p-3 p-md-4"
+        style={{
+          backgroundColor: isDark ? '#0b1329' : '#f8fafc',
+          borderColor: isDark ? '#1e293b' : '#e2e8f0',
+        }}
+      >
+        <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
           <div>
             <div className="d-flex align-items-center gap-2 mb-1">
               <span
-                className="badge bg-success bg-opacity-10 text-success fw-semibold px-2 py-1 rounded d-flex align-items-center gap-1"
-                style={{ fontSize: '0.72rem' }}
+                className="badge fw-semibold px-2.5 py-1 rounded-pill d-flex align-items-center gap-1.5 shadow-xs"
+                style={{
+                  backgroundColor: isDark ? '#064e3b' : '#ecfdf5',
+                  color: isDark ? '#34d399' : '#059669',
+                  border: isDark ? '1px solid #059669' : '1px solid #a7f3d0',
+                  fontSize: '0.72rem',
+                }}
               >
-                <Icon name="map-pin" size={13} />
-                <span>Système Cartographique Interactif</span>
+                <Icon name="map" size={13} />
+                <span>Système Cartographique Intéractif</span>
               </span>
-              <span className="text-muted small">Madagascar (23 Régions · 119 Districts)</span>
+              <span className="text-secondary small font-mono">
+                Madagascar · 6 Provinces · 23 Régions · 119 Districts
+              </span>
             </div>
-            <h3 className="h6 fw-bold mb-0 text-dark">
-              Carte Démographique &amp; Découpage Administratif
+            <h3 className={`h6 fw-bold mb-0 ${isDark ? 'text-white' : 'text-dark'}`}>
+              Visualisation &amp; Découpage Cartographique de Précision
             </h3>
           </div>
 
-          {/* Breadcrumb Navigation & Reset */}
-          <div className="d-flex align-items-center gap-2">
-            <div className="d-flex p-1 bg-light rounded-3 border">
-              <button
-                type="button"
-                className={`btn btn-sm border-0 d-flex align-items-center gap-1 ${
-                  activeTab === 'carte'
-                    ? 'bg-white shadow-sm fw-semibold text-primary'
-                    : 'text-secondary'
-                }`}
-                style={{ fontSize: '0.76rem', padding: '0.25rem 0.6rem' }}
-                onClick={() => setActiveTab('carte')}
-              >
-                <Icon name="map" size={13} />
-                <span>Carte Globale</span>
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm border-0 d-flex align-items-center gap-1 ${
-                  activeTab === 'precision'
-                    ? 'bg-white shadow-sm fw-semibold text-primary'
-                    : 'text-secondary'
-                }`}
-                style={{ fontSize: '0.76rem', padding: '0.25rem 0.6rem' }}
-                onClick={() => setActiveTab('precision')}
-              >
+          {/* Quick Search and Reset Actions */}
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            <div className="position-relative" style={{ minWidth: 240 }}>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={mapSearch}
+                onChange={(e) => handleGlobalSearch(e.target.value)}
+                placeholder="Rechercher (ex: Atsimo, Toliara...)"
+                className="form-control form-control-sm ps-4 rounded-pill"
+                style={{
+                  fontSize: '0.76rem',
+                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                  color: isDark ? '#f8fafc' : '#0f172a',
+                  borderColor: isDark ? '#334155' : '#cbd5e1',
+                }}
+              />
+              <span className="position-absolute top-50 start-0 translate-middle-y ms-2.5 text-muted pointer-events-none d-flex align-items-center">
                 <Icon name="search" size={13} />
-                <span>
-                  Précision Régionale
-                  {selectedRegion ? ` (${selectedRegion})` : ''}
-                </span>
-              </button>
+              </span>
+              {mapSearch && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-link p-0 position-absolute top-50 end-0 translate-middle-y me-2 text-muted"
+                  onClick={() => setMapSearch('')}
+                >
+                  <Icon name="x" size={13} />
+                </button>
+              )}
             </div>
 
-            {(selectedProvince || selectedRegion || selectedDistrict) && (
-              <button
-                type="button"
-                onClick={onResetFilters}
-                className="btn btn-sm btn-outline-danger d-flex align-items-center gap-1"
-                style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
-                title="Afficher tout Madagascar"
-              >
-                <Icon name="x" size={13} />
-                <span>Vue Nationale</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleResetToNational}
+              className={`btn btn-sm d-flex align-items-center gap-1.5 rounded-pill px-3 ${
+                isDark ? 'btn-outline-light' : 'btn-outline-primary'
+              }`}
+              style={{ fontSize: '0.76rem' }}
+            >
+              <Icon name="globe" size={14} />
+              <span className="fw-semibold">Vue Nationale</span>
+            </button>
           </div>
         </div>
 
-        {/* Interactive Breadcrumb Path */}
-        <div className="d-flex flex-wrap align-items-center gap-1 mt-2 pt-2 border-top small">
-          <button
-            type="button"
-            className="btn btn-sm btn-link text-decoration-none p-0 text-primary fw-semibold"
-            style={{ fontSize: '0.75rem' }}
-            onClick={onResetFilters}
-          >
-            Madagascar (National)
-          </button>
+        {/* 2. HIERARCHICAL STEPPER (PROVINCE -> REGION -> DISTRICT -> COMMUNE) */}
+        <div className="mt-3 pt-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+          {/* Visual Step Pills */}
+          <div className="d-flex flex-wrap align-items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveStepTab('province')
+                setZoomMode('national')
+              }}
+              className={`btn btn-sm py-1 px-2.5 rounded-pill border-0 d-flex align-items-center gap-1 transition-all ${
+                activeStepTab === 'province'
+                  ? 'btn-primary shadow-xs fw-bold'
+                  : isDark
+                    ? 'text-light hover:bg-dark'
+                    : 'text-secondary hover:bg-white'
+              }`}
+              style={{ fontSize: '0.74rem' }}
+            >
+              <span className="badge rounded-circle bg-white text-dark" style={{ width: 16, height: 16, fontSize: '0.62rem', lineHeight: '16px', padding: 0 }}>
+                1
+              </span>
+              <span>Province {selectedProvince ? `(${selectedProvince})` : ''}</span>
+            </button>
 
-          {selectedProvince && (
-            <>
-              <span className="text-muted">/</span>
+            <span className="text-muted small">&rarr;</span>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveStepTab('region')
+                if (selectedRegion) setZoomMode('region')
+              }}
+              className={`btn btn-sm py-1 px-2.5 rounded-pill border-0 d-flex align-items-center gap-1 transition-all ${
+                activeStepTab === 'region'
+                  ? 'btn-primary shadow-xs fw-bold'
+                  : isDark
+                    ? 'text-light'
+                    : 'text-secondary'
+              }`}
+              style={{ fontSize: '0.74rem' }}
+            >
+              <span className="badge rounded-circle bg-white text-dark" style={{ width: 16, height: 16, fontSize: '0.62rem', lineHeight: '16px', padding: 0 }}>
+                2
+              </span>
+              <span>Région {selectedRegion ? `(${selectedRegion})` : ''}</span>
+            </button>
+
+            <span className="text-muted small">&rarr;</span>
+
+            <button
+              type="button"
+              disabled={!selectedRegion}
+              onClick={() => {
+                setActiveStepTab('district')
+                if (selectedRegion) setZoomMode('region')
+              }}
+              className={`btn btn-sm py-1 px-2.5 rounded-pill border-0 d-flex align-items-center gap-1 transition-all ${
+                activeStepTab === 'district'
+                  ? 'btn-primary shadow-xs fw-bold'
+                  : !selectedRegion
+                    ? 'opacity-40'
+                    : isDark
+                      ? 'text-light'
+                      : 'text-secondary'
+              }`}
+              style={{ fontSize: '0.74rem' }}
+            >
+              <span className="badge rounded-circle bg-white text-dark" style={{ width: 16, height: 16, fontSize: '0.62rem', lineHeight: '16px', padding: 0 }}>
+                3
+              </span>
+              <span>District {selectedDistrict ? `(${selectedDistrict})` : ''}</span>
+            </button>
+
+            <span className="text-muted small">&rarr;</span>
+
+            <button
+              type="button"
+              disabled={!selectedDistrict}
+              onClick={() => {
+                setActiveStepTab('commune')
+                if (selectedDistrict) setZoomMode('district')
+              }}
+              className={`btn btn-sm py-1 px-2.5 rounded-pill border-0 d-flex align-items-center gap-1 transition-all ${
+                activeStepTab === 'commune'
+                  ? 'btn-success shadow-xs fw-bold text-white'
+                  : !selectedDistrict
+                    ? 'opacity-40'
+                    : isDark
+                      ? 'text-light'
+                      : 'text-secondary'
+              }`}
+              style={{ fontSize: '0.74rem' }}
+            >
+              <span className="badge rounded-circle bg-white text-dark" style={{ width: 16, height: 16, fontSize: '0.62rem', lineHeight: '16px', padding: 0 }}>
+                4
+              </span>
+              <span>Commune {selectedCommune ? `(${selectedCommune})` : ''}</span>
+            </button>
+          </div>
+
+          {/* Quick Zoom Mode Toggles */}
+          <div className="d-flex align-items-center gap-1">
+            <span className="text-muted small me-1 d-none d-md-inline" style={{ fontSize: '0.72rem' }}>
+              Niveau de zoom :
+            </span>
+            <div
+              className="btn-group btn-group-sm p-0.5 rounded-pill border"
+              style={{ backgroundColor: isDark ? '#1e293b' : '#ffffff' }}
+            >
               <button
                 type="button"
-                className="btn btn-sm btn-link text-decoration-none p-0 text-secondary"
-                style={{ fontSize: '0.75rem' }}
-                onClick={() => {
-                  if (onSelectRegion) onSelectRegion('')
-                  if (onSelectDistrict) onSelectDistrict('')
-                }}
+                onClick={() => setZoomMode('national')}
+                className={`btn btn-sm py-0.5 px-2 rounded-pill border-0 ${
+                  zoomMode === 'national' ? 'btn-secondary text-white fw-bold' : 'text-muted'
+                }`}
+                style={{ fontSize: '0.7rem' }}
+                title="Vue globale île de Madagascar"
               >
-                Province de {selectedProvince}
+                National
               </button>
-            </>
-          )}
-
-          {selectedRegion && (
-            <>
-              <span className="text-muted">/</span>
-              <span className="badge bg-primary text-white px-2 py-0.5 rounded font-mono" style={{ fontSize: '0.72rem' }}>
-                Région : {selectedRegion}
-              </span>
-            </>
-          )}
-
-          {selectedDistrict && (
-            <>
-              <span className="text-muted">/</span>
-              <span className="badge bg-success text-white px-2 py-0.5 rounded font-mono" style={{ fontSize: '0.72rem' }}>
-                District : {selectedDistrict}
-              </span>
-            </>
-          )}
+              <button
+                type="button"
+                disabled={!activeRegionGeo}
+                onClick={() => setZoomMode('region')}
+                className={`btn btn-sm py-0.5 px-2 rounded-pill border-0 ${
+                  zoomMode === 'region' ? 'btn-primary text-white fw-bold' : 'text-muted'
+                }`}
+                style={{ fontSize: '0.7rem' }}
+                title="Zoom ciblé sur la région"
+              >
+                Région
+              </button>
+              <button
+                type="button"
+                disabled={!activeDistrictGeo}
+                onClick={() => setZoomMode('district')}
+                className={`btn btn-sm py-0.5 px-2 rounded-pill border-0 ${
+                  zoomMode === 'district' ? 'btn-success text-white fw-bold' : 'text-muted'
+                }`}
+                style={{ fontSize: '0.7rem' }}
+                title="Zoom détaillé sur le district"
+              >
+                District
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* 3. MAIN CARTE & PRECISION DRILLDOWN BODY */}
       <div className="card-body p-3 p-md-4">
         <div className="row g-4 align-items-start">
-          {/* LEFT COLUMN: THE INTERACTIVE SVG MAP */}
-          <div className={activeRegionGeo ? 'col-lg-6' : 'col-lg-8'}>
+          {/* ========================================================================= */}
+          {/* LEFT: THE CARTOGRAPHIC SVG MAP CANVAS */}
+          {/* ========================================================================= */}
+          <div className={activeRegionGeo ? 'col-lg-7' : 'col-lg-8'}>
             <div
-              className="p-3 rounded-3 position-relative overflow-hidden"
+              className="position-relative rounded-3 overflow-hidden shadow-inner"
               style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                minHeight: '480px',
+                backgroundColor: oceanBg,
+                border: `1px solid ${oceanBorder}`,
+                minHeight: '520px',
               }}
             >
-              {/* Map Title watermark */}
-              <div className="position-absolute top-0 start-0 p-3 pointer-events-none" style={{ zIndex: 1 }}>
-                <span className="text-uppercase fw-bold text-muted small" style={{ fontSize: '0.68rem', letterSpacing: '0.08em' }}>
+              {/* Maritime Sea Watermarks */}
+              <div
+                className="position-absolute top-0 start-0 p-3 pointer-events-none"
+                style={{ zIndex: 2 }}
+              >
+                <div
+                  className="text-uppercase fw-bold font-mono text-muted tracking-wider"
+                  style={{
+                    fontSize: '0.68rem',
+                    letterSpacing: '0.12em',
+                    opacity: isDark ? 0.45 : 0.65,
+                  }}
+                >
                   Canal de Mozambique
-                </span>
-              </div>
-              <div className="position-absolute top-0 end-0 p-3 pointer-events-none" style={{ zIndex: 1 }}>
-                <span className="text-uppercase fw-bold text-muted small" style={{ fontSize: '0.68rem', letterSpacing: '0.08em' }}>
-                  Océan Indien
-                </span>
+                </div>
+                <div className="text-muted" style={{ fontSize: '0.62rem', opacity: 0.5 }}>
+                  Côte Ouest · Océan Indien
+                </div>
               </div>
 
-              {/* SVG MAP OF MADAGASCAR */}
+              <div
+                className="position-absolute top-0 end-0 p-3 text-end pointer-events-none"
+                style={{ zIndex: 2 }}
+              >
+                <div
+                  className="text-uppercase fw-bold font-mono text-muted tracking-wider"
+                  style={{
+                    fontSize: '0.68rem',
+                    letterSpacing: '0.12em',
+                    opacity: isDark ? 0.45 : 0.65,
+                  }}
+                >
+                  Océan Indien
+                </div>
+                <div className="text-muted" style={{ fontSize: '0.62rem', opacity: 0.5 }}>
+                  Côte Est
+                </div>
+              </div>
+
+              {/* FLOATING ZOOM CONTROLS OVERLAY */}
+              <div
+                className="position-absolute top-0 end-0 m-3 d-flex flex-column gap-1.5 shadow-sm rounded-2 overflow-hidden"
+                style={{ zIndex: 10 }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (zoomMode === 'national' && activeRegionGeo) setZoomMode('region')
+                    else if (zoomMode === 'region' && activeDistrictGeo) setZoomMode('district')
+                  }}
+                  className={`btn btn-sm ${isDark ? 'btn-dark border-secondary' : 'btn-white border'} p-1.5`}
+                  title="Zoomer (+)"
+                  disabled={zoomMode === 'district' || (!activeRegionGeo && !activeDistrictGeo)}
+                >
+                  <Icon name="search" size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (zoomMode === 'district') setZoomMode('region')
+                    else if (zoomMode === 'region') setZoomMode('national')
+                  }}
+                  className={`btn btn-sm ${isDark ? 'btn-dark border-secondary' : 'btn-white border'} p-1.5`}
+                  title="Dézoomer (-)"
+                  disabled={zoomMode === 'national'}
+                >
+                  <Icon name="chevron-down" size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetToNational}
+                  className={`btn btn-sm ${isDark ? 'btn-dark border-secondary' : 'btn-white border'} p-1.5`}
+                  title="Recadrer vue nationale"
+                >
+                  <Icon name="refresh" size={14} />
+                </button>
+              </div>
+
+              {/* INTERACTIVE SVG MAP */}
               <svg
-                viewBox="70 20 420 750"
+                viewBox={currentViewBox}
                 className="w-100 h-auto"
-                style={{ maxHeight: '580px', filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.06))' }}
+                style={{
+                  maxHeight: '620px',
+                  transition: 'viewBox 0.75s cubic-bezier(0.16, 1, 0.3, 1)',
+                  filter: isDark
+                    ? 'drop-shadow(0 6px 18px rgba(0,0,0,0.5))'
+                    : 'drop-shadow(0 6px 16px rgba(0,0,0,0.08))',
+                }}
               >
                 <defs>
-                  {/* Glowing filter for highlighted region */}
-                  <filter id="mapGlowActive" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#2563eb" floodOpacity="0.6" />
+                  {/* Ocean gradient background */}
+                  <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor={isDark ? '#060d1a' : '#e0f2fe'} />
+                    <stop offset="50%" stopColor={isDark ? '#09152b' : '#f0f9ff'} />
+                    <stop offset="100%" stopColor={isDark ? '#060d1a' : '#e0f2fe'} />
+                  </linearGradient>
+
+                  {/* Active Region Glow Filters */}
+                  <filter id="activeRegionGlow" x="-25%" y="-25%" width="150%" height="150%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#f59e0b" floodOpacity="0.75" />
                   </filter>
-                  <filter id="mapGlowHover" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#059669" floodOpacity="0.5" />
+                  <filter id="hoverRegionGlow" x="-25%" y="-25%" width="150%" height="150%">
+                    <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#10b981" floodOpacity="0.65" />
                   </filter>
                 </defs>
 
-                {/* Ocean contour / Island Background glow */}
+                {/* Background Water Canvas */}
+                <rect x="0" y="0" width="600" height="850" fill="url(#oceanGrad)" />
+
+                {/* Cartographic Nautical Graticules (Latitude & Longitude parallels) */}
+                <g stroke={graticuleStroke} strokeWidth="1" strokeDasharray="3 3">
+                  <line x1="70" y1="120" x2="480" y2="120" />
+                  <text x="80" y="116" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="8" fontFamily="monospace">
+                    14° S
+                  </text>
+                  <line x1="70" y1="280" x2="480" y2="280" />
+                  <text x="80" y="276" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="8" fontFamily="monospace">
+                    18° S
+                  </text>
+                  <line x1="70" y1="450" x2="480" y2="450" />
+                  <text x="80" y="446" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="8" fontFamily="monospace">
+                    22° S (Tropique du Capricorne)
+                  </text>
+                  <line x1="70" y1="650" x2="480" y2="650" />
+                  <text x="80" y="646" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="8" fontFamily="monospace">
+                    25° S
+                  </text>
+
+                  <line x1="180" y1="30" x2="180" y2="780" />
+                  <text x="184" y="42" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="8" fontFamily="monospace">
+                    44° E
+                  </text>
+                  <line x1="330" y1="30" x2="330" y2="780" />
+                  <text x="334" y="42" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="8" fontFamily="monospace">
+                    48° E
+                  </text>
+                  <line x1="430" y1="30" x2="430" y2="780" />
+                  <text x="434" y="42" fill={isDark ? '#64748b' : '#94a3b8'} fontSize="8" fontFamily="monospace">
+                    50° E
+                  </text>
+                </g>
+
+                {/* Coastal Bathymetry Halo Outer Glow */}
                 <path
                   d="M 370 40 L 400 65 L 445 115 L 460 250 L 435 380 L 410 470 L 385 540 L 360 690 L 345 745 L 275 755 L 205 750 L 135 640 L 115 570 L 130 420 L 140 360 L 190 230 L 260 215 L 320 95 Z"
-                  fill="#f1f5f9"
-                  stroke="#cbd5e1"
-                  strokeWidth="2"
+                  fill="none"
+                  stroke={isDark ? '#0284c7' : '#38bdf8'}
+                  strokeWidth="8"
                   strokeLinejoin="round"
-                  opacity="0.5"
+                  opacity="0.3"
                 />
 
                 {/* RENDER ALL 23 REGIONS */}
                 {REGIONS_GEO.map((reg) => {
-                  const isSelected =
-                    selectedRegion.toLowerCase() === reg.nom.toLowerCase()
+                  const isSelected = selectedRegion.toLowerCase() === reg.nom.toLowerCase()
                   const isHovered = hoveredRegion?.id === reg.id
                   const isProvinceMatched =
                     selectedProvince &&
                     reg.province.toLowerCase() === selectedProvince.toLowerCase()
 
-                  // Styling
-                  let fill = '#e2e8f0'
-                  let stroke = '#94a3b8'
-                  let strokeWidth = 1.2
+                  const themeCfg = PROVINCE_THEMES[reg.province] || PROVINCE_THEMES['Antananarivo']
+
+                  // Calculate fill and stroke colors
+                  let fill = isDark ? themeCfg.fillDark : themeCfg.fillLight
+                  let stroke = isDark ? themeCfg.borderDark : themeCfg.stroke
+                  let strokeWidth = 1.3
                   let filter = undefined
+                  let opacity = 1
 
                   if (isSelected) {
-                    fill = '#2563eb'
+                    fill = isDark ? '#b45309' : '#f59e0b'
                     stroke = '#ffffff'
-                    strokeWidth = 2.5
-                    filter = 'url(#mapGlowActive)'
+                    strokeWidth = 3
+                    filter = 'url(#activeRegionGlow)'
                   } else if (isHovered) {
-                    fill = '#10b981'
-                    stroke = '#047857'
-                    strokeWidth = 2
-                    filter = 'url(#mapGlowHover)'
+                    fill = isDark ? '#065f46' : '#10b981'
+                    stroke = '#ffffff'
+                    strokeWidth = 2.4
+                    filter = 'url(#hoverRegionGlow)'
                   } else if (isProvinceMatched) {
-                    fill = '#bfdbfe'
-                    stroke = '#3b82f6'
-                    strokeWidth = 1.8
+                    // Province highlighted
+                    fill = isDark ? themeCfg.color : themeCfg.borderLight
+                    stroke = '#ffffff'
+                    strokeWidth = 2
                   } else if (selectedRegion) {
-                    // Dim unselected regions when a specific region is focused
-                    fill = '#f1f5f9'
-                    stroke = '#cbd5e1'
+                    // Dim background regions when a region is in focus
+                    opacity = isDark ? 0.35 : 0.45
+                    fill = isDark ? '#1e293b' : '#f1f5f9'
+                    stroke = isDark ? '#334155' : '#cbd5e1'
                     strokeWidth = 1
                   }
 
                   return (
-                    <g key={reg.id}>
+                    <g key={reg.id} className="transition-all">
                       <path
                         d={reg.path}
                         fill={fill}
@@ -647,6 +693,7 @@ export default function MadagascarMap({
                         strokeWidth={strokeWidth}
                         strokeLinejoin="round"
                         filter={filter}
+                        opacity={opacity}
                         style={{
                           cursor: 'pointer',
                           transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -656,29 +703,36 @@ export default function MadagascarMap({
                         onClick={() => handleRegionClick(reg)}
                       />
 
-                      {/* Region centroid marker dot */}
+                      {/* Centroid Node */}
                       <circle
                         cx={reg.center.x}
                         cy={reg.center.y}
-                        r={isSelected ? 4.5 : 2.5}
-                        fill={isSelected ? '#ffffff' : '#475569'}
-                        stroke={isSelected ? '#2563eb' : '#ffffff'}
+                        r={isSelected ? 5 : isHovered ? 4 : 2.5}
+                        fill={isSelected ? '#ffffff' : themeCfg.color}
+                        stroke={isSelected ? '#b45309' : '#ffffff'}
                         strokeWidth={isSelected ? 2 : 1}
                         style={{ pointerEvents: 'none' }}
                       />
 
-                      {/* Region Name Label (abbreviated or full) */}
-                      {(isSelected || isHovered || isProvinceMatched) && (
+                      {/* Region Label */}
+                      {(isSelected || isHovered || isProvinceMatched || zoomMode === 'region') && (
                         <text
                           x={reg.center.x}
-                          y={reg.center.y - 8}
+                          y={reg.center.y - (isSelected ? 10 : 7)}
                           textAnchor="middle"
                           className="font-mono fw-bold"
                           style={{
                             fontSize: isSelected ? '11px' : '9px',
-                            fill: isSelected ? '#1e293b' : '#334155',
+                            fill: isSelected
+                              ? '#ffffff'
+                              : isDark
+                                ? '#f8fafc'
+                                : '#0f172a',
+                            fontWeight: isSelected ? 800 : 700,
                             pointerEvents: 'none',
-                            textShadow: '0 1px 3px rgba(255,255,255,0.9), 0 -1px 3px rgba(255,255,255,0.9)',
+                            textShadow: isDark
+                              ? '0 1px 4px #000, 0 -1px 4px #000'
+                              : '0 1px 3px #fff, 0 -1px 3px #fff',
                           }}
                         >
                           {reg.nom}
@@ -688,121 +742,281 @@ export default function MadagascarMap({
                   )
                 })}
 
-                {/* ANIMATED RADAR BEACON PIN ON SELECTED REGION */}
+                {/* DISTRICT LEVEL PINS & LABELS (When a region is selected or zoomed) */}
                 {activeRegionGeo && (
+                  <g className="district-nodes-group">
+                    {activeRegionGeo.districts.map((d) => {
+                      const isDistActive =
+                        selectedDistrict.toLowerCase() === d.nom.toLowerCase()
+                      const isDistHover = hoveredDistrict === d.nom
+
+                      return (
+                        <g
+                          key={d.nom}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDistrictClick(d.nom)
+                          }}
+                          onMouseEnter={() => setHoveredDistrict(d.nom)}
+                          onMouseLeave={() => setHoveredDistrict(null)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {/* Pulsing beacon if active */}
+                          {isDistActive && (
+                            <circle
+                              cx={d.x}
+                              cy={d.y}
+                              className="chart-pulse-ring"
+                              fill="none"
+                              stroke="#2563eb"
+                              strokeWidth="2.5"
+                            />
+                          )}
+
+                          {/* Outer pin halo */}
+                          <circle
+                            cx={d.x}
+                            cy={d.y}
+                            r={isDistActive ? 7 : isDistHover ? 6 : 4}
+                            fill={isDistActive ? '#2563eb' : d.isChefLieu ? '#f59e0b' : '#059669'}
+                            stroke="#ffffff"
+                            strokeWidth={isDistActive ? 2.5 : 1.5}
+                          />
+
+                          {/* District Centroid Dot */}
+                          <circle
+                            cx={d.x}
+                            cy={d.y}
+                            r={isDistActive ? 3 : 1.8}
+                            fill="#ffffff"
+                          />
+
+                          {/* District Name Label */}
+                          <g transform={`translate(${d.x}, ${d.y + 12})`}>
+                            <rect
+                              x={-((d.nom.length * 5.5 + 10) / 2)}
+                              y="-8"
+                              width={d.nom.length * 5.5 + 10}
+                              height="14"
+                              rx="3"
+                              fill={
+                                isDistActive
+                                  ? '#2563eb'
+                                  : isDark
+                                    ? 'rgba(15, 23, 42, 0.92)'
+                                    : 'rgba(255, 255, 255, 0.95)'
+                              }
+                              stroke={isDistActive ? '#ffffff' : isDark ? '#334155' : '#cbd5e1'}
+                              strokeWidth="0.8"
+                            />
+                            <text
+                              x="0"
+                              y="2"
+                              textAnchor="middle"
+                              fill={
+                                isDistActive
+                                  ? '#ffffff'
+                                  : isDark
+                                    ? '#f8fafc'
+                                    : '#1e293b'
+                              }
+                              fontFamily="monospace"
+                              fontSize="7.5px"
+                              fontWeight={isDistActive || d.isChefLieu ? 'bold' : 'normal'}
+                            >
+                              {d.nom}
+                            </text>
+                          </g>
+                        </g>
+                      )
+                    })}
+                  </g>
+                )}
+
+                {/* ANIMATED PULSE PIN FOR ACTIVE REGION / CHEF LIEU */}
+                {activeRegionGeo && !selectedDistrict && (
                   <g style={{ pointerEvents: 'none' }}>
                     <circle
                       cx={activeRegionGeo.center.x}
                       cy={activeRegionGeo.center.y}
                       className="chart-pulse-ring"
                       fill="none"
-                      stroke="#2563eb"
+                      stroke="#f59e0b"
                       strokeWidth="2.5"
                     />
                     <circle
                       cx={activeRegionGeo.center.x}
                       cy={activeRegionGeo.center.y}
                       r="6"
-                      fill="#2563eb"
+                      fill="#f59e0b"
                       stroke="#ffffff"
                       strokeWidth="2"
                     />
 
-                    {/* Flag / Pin Card above selected region */}
+                    {/* Pin Callout Box */}
                     <g
-                      transform={`translate(${activeRegionGeo.center.x - 60}, ${
-                        activeRegionGeo.center.y - 42
+                      transform={`translate(${activeRegionGeo.center.x - 65}, ${
+                        activeRegionGeo.center.y - 44
                       })`}
                     >
                       <rect
-                        width="120"
+                        width="130"
                         height="26"
-                        rx="5"
-                        fill="#0f172a"
-                        stroke="#ffffff"
+                        rx="6"
+                        fill={isDark ? '#0f172a' : '#1e293b'}
+                        stroke="#f59e0b"
                         strokeWidth="1.5"
                         opacity="0.95"
                       />
                       <text
-                        x="60"
+                        x="65"
                         y="17"
                         textAnchor="middle"
                         fill="#ffffff"
-                        className="font-mono fw-bold"
-                        style={{ fontSize: '10px' }}
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                        fontSize="10px"
                       >
-                        📍 {activeRegionGeo.nom}
+                        {activeRegionGeo.nom.toUpperCase()}
                       </text>
                     </g>
                   </g>
                 )}
+
+                {/* NAUTICAL COMPASS ROSE (Boussole) */}
+                <g transform="translate(100, 680)" style={{ pointerEvents: 'none', opacity: isDark ? 0.6 : 0.75 }}>
+                  <circle cx="0" cy="0" r="22" fill="none" stroke={isDark ? '#475569' : '#94a3b8'} strokeWidth="1" />
+                  <circle cx="0" cy="0" r="18" fill="none" stroke={isDark ? '#334155' : '#cbd5e1'} strokeWidth="0.5" strokeDasharray="2 2" />
+                  {/* North needle */}
+                  <polygon points="0,-20 4,-5 0,0" fill="#e11d48" />
+                  <polygon points="0,-20 -4,-5 0,0" fill="#be123c" />
+                  {/* South needle */}
+                  <polygon points="0,20 4,5 0,0" fill={isDark ? '#94a3b8' : '#64748b'} />
+                  <polygon points="0,20 -4,5 0,0" fill={isDark ? '#64748b' : '#475569'} />
+                  {/* East / West */}
+                  <polygon points="20,0 5,4 0,0" fill={isDark ? '#94a3b8' : '#64748b'} />
+                  <polygon points="-20,0 -5,-4 0,0" fill={isDark ? '#94a3b8' : '#64748b'} />
+                  {/* N label */}
+                  <text x="0" y="-23" textAnchor="middle" fill="#e11d48" fontWeight="bold" fontSize="9" fontFamily="monospace">
+                    N
+                  </text>
+                  <text x="0" y="29" textAnchor="middle" fill={isDark ? '#cbd5e1' : '#64748b'} fontSize="7" fontFamily="monospace">
+                    S
+                  </text>
+                  <text x="25" y="3" textAnchor="start" fill={isDark ? '#cbd5e1' : '#64748b'} fontSize="7" fontFamily="monospace">
+                    E
+                  </text>
+                  <text x="-25" y="3" textAnchor="end" fill={isDark ? '#cbd5e1' : '#64748b'} fontSize="7" fontFamily="monospace">
+                    O
+                  </text>
+                </g>
+
+                {/* GRAPHIC SCALE BAR (Échelle) */}
+                <g transform="translate(260, 785)" style={{ pointerEvents: 'none', opacity: 0.8 }}>
+                  <rect x="0" y="0" width="80" height="3" fill={isDark ? '#ffffff' : '#0f172a'} />
+                  <rect x="80" y="0" width="80" height="3" fill={isDark ? '#64748b' : '#cbd5e1'} />
+                  <line x1="0" y1="-2" x2="0" y2="5" stroke={isDark ? '#ffffff' : '#0f172a'} strokeWidth="1" />
+                  <line x1="80" y1="-2" x2="80" y2="5" stroke={isDark ? '#ffffff' : '#0f172a'} strokeWidth="1" />
+                  <line x1="160" y1="-2" x2="160" y2="5" stroke={isDark ? '#ffffff' : '#0f172a'} strokeWidth="1" />
+                  <text x="0" y="-4" textAnchor="middle" fill={isDark ? '#94a3b8' : '#64748b'} fontSize="6.5" fontFamily="monospace">
+                    0
+                  </text>
+                  <text x="80" y="-4" textAnchor="middle" fill={isDark ? '#94a3b8' : '#64748b'} fontSize="6.5" fontFamily="monospace">
+                    100 km
+                  </text>
+                  <text x="160" y="-4" textAnchor="middle" fill={isDark ? '#94a3b8' : '#64748b'} fontSize="6.5" fontFamily="monospace">
+                    200 km
+                  </text>
+                </g>
               </svg>
 
-              {/* Map Floating Legend */}
+              {/* FLOATING PROVINCE THEMATIC LEGEND */}
               <div
-                className="position-absolute bottom-0 start-0 p-3 pointer-events-none"
-                style={{ zIndex: 1 }}
+                className="position-absolute bottom-0 start-0 p-2.5 pointer-events-none"
+                style={{ zIndex: 10 }}
               >
                 <div
-                  className="p-2 rounded bg-white bg-opacity-90 border shadow-sm small"
-                  style={{ fontSize: '0.72rem', maxWidth: 220 }}
+                  className="p-2 rounded-3 shadow-sm border small"
+                  style={{
+                    backgroundColor: isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.95)',
+                    backdropFilter: 'blur(8px)',
+                    borderColor: isDark ? '#334155' : '#e2e8f0',
+                    fontSize: '0.68rem',
+                    maxWidth: 240,
+                  }}
                 >
-                  <div className="fw-semibold text-dark mb-1">Guide Interactif</div>
-                  <div className="d-flex align-items-center gap-1.5 mb-0.5">
-                    <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#2563eb' }} />
-                    <span className="text-secondary">Région active / sélectionnée</span>
+                  <div className={`fw-bold mb-1 ${isDark ? 'text-white' : 'text-dark'}`}>
+                    Provinces &amp; Découpage
                   </div>
-                  <div className="d-flex align-items-center gap-1.5 mb-0.5">
-                    <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#10b981' }} />
-                    <span className="text-secondary">Survol (Cliquer pour zoomer)</span>
-                  </div>
-                  <div className="d-flex align-items-center gap-1.5">
-                    <span style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#bfdbfe' }} />
-                    <span className="text-secondary">Province correspondante</span>
+                  <div className="d-flex flex-wrap gap-x-2 gap-y-1">
+                    {Object.values(PROVINCE_THEMES).map((pt) => (
+                      <div key={pt.name} className="d-flex align-items-center gap-1">
+                        <span
+                          style={{
+                            width: 9,
+                            height: 9,
+                            borderRadius: 2,
+                            backgroundColor: pt.color,
+                          }}
+                        />
+                        <span className={isDark ? 'text-light' : 'text-secondary'}>
+                          {pt.name}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: PRECISION DRILL-DOWN PANEL ("comme map mais dans la carte") */}
-          <div className={activeRegionGeo ? 'col-lg-6' : 'col-lg-4'}>
+          {/* ========================================================================= */}
+          {/* RIGHT: MULTI-LEVEL DRILLDOWN PANEL ("PROVINCE -> REGION -> DISTRICT -> COMMUNE") */}
+          {/* ========================================================================= */}
+          <div className={activeRegionGeo ? 'col-lg-5' : 'col-lg-4'}>
             {activeRegionGeo ? (
               <div className="d-flex flex-column gap-3">
-                {/* Active Zone Detail Card */}
+                {/* 1. REGION HERO CARD */}
                 <div
-                  className="p-3 p-md-4 rounded-3 border position-relative overflow-hidden"
+                  className="p-3 rounded-3 border position-relative overflow-hidden shadow-xs"
                   style={{
-                    backgroundColor: '#ffffff',
-                    borderLeft: '4px solid #2563eb !important',
+                    backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                    borderTopColor: isDark ? '#334155' : '#e2e8f0',
+                    borderRightColor: isDark ? '#334155' : '#e2e8f0',
+                    borderBottomColor: isDark ? '#334155' : '#e2e8f0',
+                    borderLeftColor:
+                      PROVINCE_THEMES[activeRegionGeo.province]?.color || '#2563eb',
+                    borderLeftWidth: '4px',
+                    borderLeftStyle: 'solid',
                   }}
                 >
                   <div className="d-flex justify-content-between align-items-start mb-2">
                     <div>
                       <span
-                        className="badge bg-primary bg-opacity-10 text-primary fw-semibold px-2 py-0.5 rounded"
-                        style={{ fontSize: '0.72rem' }}
+                        className="badge px-2 py-0.5 rounded-pill font-mono fw-semibold"
+                        style={{
+                          backgroundColor: PROVINCE_THEMES[activeRegionGeo.province]?.badgeBg || '#e0f2fe',
+                          color: PROVINCE_THEMES[activeRegionGeo.province]?.badgeText || '#0369a1',
+                          fontSize: '0.7rem',
+                        }}
                       >
                         Province de {activeRegionGeo.province}
                       </span>
-                      <h4 className="h5 fw-bold text-dark mt-1 mb-0">
+                      <h4 className={`h5 fw-bold mt-1 mb-0 ${isDark ? 'text-white' : 'text-dark'}`}>
                         Région {activeRegionGeo.nom}
                       </h4>
-                      <p className="text-muted small mb-0">
+                      <p className="text-muted small mb-0" style={{ fontSize: '0.74rem' }}>
                         Chef-lieu régional : <strong>{activeRegionGeo.chefLieu}</strong>
                       </p>
                     </div>
 
                     <button
                       type="button"
-                      className="btn btn-sm btn-outline-secondary"
-                      onClick={() => {
-                        if (onSelectRegion) onSelectRegion('')
-                        if (onSelectDistrict) onSelectDistrict('')
-                      }}
-                      title="Fermer le zoom régional"
+                      className="btn btn-sm btn-outline-secondary p-1 rounded-circle"
+                      onClick={handleResetToNational}
+                      title="Revenir à la vue nationale"
                     >
-                      <Icon name="x" size={14} />
+                      <Icon name="x" size={13} />
                     </button>
                   </div>
 
@@ -813,26 +1027,26 @@ export default function MadagascarMap({
                     return (
                       <div className="row g-2 mt-2 pt-2 border-top">
                         <div className="col-4">
-                          <div className="text-muted small" style={{ fontSize: '0.7rem' }}>
-                            Population
+                          <div className="text-muted small" style={{ fontSize: '0.68rem' }}>
+                            Population totale
                           </div>
-                          <div className="fw-bold font-mono text-primary fs-6">
+                          <div className="fw-bold font-mono text-primary" style={{ fontSize: '0.88rem' }}>
                             {stats.populationTotale} hab.
                           </div>
                         </div>
                         <div className="col-4">
-                          <div className="text-muted small" style={{ fontSize: '0.7rem' }}>
-                            Chefs de foyer
+                          <div className="text-muted small" style={{ fontSize: '0.68rem' }}>
+                            Ménages recensés
                           </div>
-                          <div className="fw-bold font-mono text-dark fs-6">
+                          <div className={`fw-bold font-mono ${isDark ? 'text-white' : 'text-dark'}`} style={{ fontSize: '0.88rem' }}>
                             {stats.individus}
                           </div>
                         </div>
                         <div className="col-4">
-                          <div className="text-muted small" style={{ fontSize: '0.7rem' }}>
+                          <div className="text-muted small" style={{ fontSize: '0.68rem' }}>
                             Âge moyen
                           </div>
-                          <div className="fw-bold font-mono text-dark fs-6">
+                          <div className={`fw-bold font-mono ${isDark ? 'text-white' : 'text-dark'}`} style={{ fontSize: '0.88rem' }}>
                             {stats.ageMoyen} ans
                           </div>
                         </div>
@@ -841,22 +1055,33 @@ export default function MadagascarMap({
                   })()}
                 </div>
 
-                {/* PRECISION MAP / DISTRICTS GRID */}
-                <div className="p-3 bg-light rounded-3 border">
+                {/* 2. DISTRICT DRILLDOWN CARD (WITH SELECTABLE DISTRICTS) */}
+                <div
+                  className="p-3 rounded-3 border shadow-xs"
+                  style={{
+                    backgroundColor: isDark ? '#1e293b' : '#f8fafc',
+                    borderColor: isDark ? '#334155' : '#e2e8f0',
+                  }}
+                >
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <div>
-                      <h5 className="fw-bold text-dark small mb-0">
+                      <h5 className={`fw-bold small mb-0 ${isDark ? 'text-white' : 'text-dark'}`}>
                         Districts de {activeRegionGeo.nom} ({activeRegionGeo.districts.length})
                       </h5>
-                      <span className="text-muted" style={{ fontSize: '0.7rem' }}>
-                        Sélectionnez un district pour affiner la précision
+                      <span className="text-muted" style={{ fontSize: '0.68rem' }}>
+                        Cliquez sur un district pour afficher ses communes et zoomer
                       </span>
                     </div>
 
                     {selectedDistrict && (
                       <button
                         type="button"
-                        onClick={() => onSelectDistrict && onSelectDistrict('')}
+                        onClick={() => {
+                          if (onSelectDistrict) onSelectDistrict('')
+                          setSelectedCommune('')
+                          setZoomMode('region')
+                          setActiveStepTab('district')
+                        }}
                         className="btn btn-sm btn-link p-0 text-decoration-none small text-danger"
                         style={{ fontSize: '0.72rem' }}
                       >
@@ -865,8 +1090,8 @@ export default function MadagascarMap({
                     )}
                   </div>
 
-                  {/* District Interactive Buttons / Cards */}
-                  <div className="d-flex flex-wrap gap-2">
+                  {/* District buttons grid */}
+                  <div className="d-flex flex-wrap gap-1.5 mt-2">
                     {activeRegionGeo.districts.map((d) => {
                       const isDistActive =
                         selectedDistrict.toLowerCase() === d.nom.toLowerCase()
@@ -875,29 +1100,30 @@ export default function MadagascarMap({
                           key={d.nom}
                           type="button"
                           onClick={() => handleDistrictClick(d.nom)}
-                          className={`btn btn-sm text-start d-flex align-items-center gap-1.5 rounded-2 transition-all ${
+                          className={`btn btn-sm text-start d-flex align-items-center gap-1 rounded-2 transition-all ${
                             isDistActive
-                              ? 'btn-primary shadow-sm fw-semibold'
-                              : 'btn-white border text-dark hover:bg-white'
+                              ? 'btn-primary shadow-xs fw-semibold'
+                              : isDark
+                                ? 'btn-dark border border-secondary text-light'
+                                : 'btn-white border text-dark'
                           }`}
                           style={{
-                            fontSize: '0.78rem',
-                            padding: '0.4rem 0.65rem',
-                            backgroundColor: isDistActive ? '#2563eb' : '#ffffff',
+                            fontSize: '0.75rem',
+                            padding: '0.35rem 0.55rem',
                           }}
                         >
                           <Icon
                             name={isDistActive ? 'check' : 'map-pin'}
-                            size={13}
+                            size={12}
                             className={isDistActive ? 'text-white' : 'text-primary'}
                           />
                           <span>{d.nom}</span>
                           {d.isChefLieu && (
                             <span
                               className={`badge rounded-pill ms-1 ${
-                                isDistActive ? 'bg-white text-primary' : 'bg-primary bg-opacity-10 text-primary'
+                                isDistActive ? 'bg-white text-primary' : 'bg-warning text-dark'
                               }`}
-                              style={{ fontSize: '0.62rem' }}
+                              style={{ fontSize: '0.6rem', padding: '0.15rem 0.4rem' }}
                             >
                               Chef-Lieu
                             </span>
@@ -908,91 +1134,213 @@ export default function MadagascarMap({
                   </div>
                 </div>
 
-                {/* LEVEL 3 PRECISION: COMMUNES LIST */}
+                {/* 3. LEVEL 4 PRECISION: COMMUNES DRILLDOWN EXPLORER */}
                 {selectedDistrict && (
-                  <div className="p-3 bg-white rounded-3 border">
+                  <div
+                    className="p-3 rounded-3 border shadow-xs"
+                    style={{
+                      backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                      borderColor: isDark ? '#334155' : '#e2e8f0',
+                    }}
+                  >
                     <div className="d-flex justify-content-between align-items-center mb-2">
                       <div className="d-flex align-items-center gap-1.5">
                         <Icon name="home" size={15} className="text-success" />
-                        <h6 className="fw-bold mb-0 text-dark small">
-                          Communes &amp; Arrondissements de {selectedDistrict}
+                        <h6 className={`fw-bold mb-0 small ${isDark ? 'text-white' : 'text-dark'}`}>
+                          Communes de {selectedDistrict}
                         </h6>
                       </div>
                       <span className="badge bg-success bg-opacity-10 text-success font-mono small">
-                        {communesForActiveDistrict.length} communes
+                        {allCommunes.length} communes
                       </span>
                     </div>
 
-                    <p className="text-muted small mb-2" style={{ fontSize: '0.72rem' }}>
-                      Périmètre de découpage du recensement communal et focalisation fokontany :
-                    </p>
-
-                    <div className="d-flex flex-wrap gap-1.5">
-                      {communesForActiveDistrict.map((comm) => (
-                        <span
-                          key={comm}
-                          className="badge bg-light text-dark border px-2 py-1 rounded"
-                          style={{ fontSize: '0.73rem', fontWeight: 500 }}
-                        >
-                          🏛️ {comm}
-                        </span>
-                      ))}
+                    {/* Commune Search Filter */}
+                    <div className="mb-2">
+                      <input
+                        type="text"
+                        value={communeSearch}
+                        onChange={(e) => setCommuneSearch(e.target.value)}
+                        placeholder={`Filtrer parmi les communes de ${selectedDistrict}...`}
+                        className="form-control form-control-sm rounded"
+                        style={{
+                          fontSize: '0.74rem',
+                          backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                          color: isDark ? '#f8fafc' : '#0f172a',
+                          borderColor: isDark ? '#334155' : '#cbd5e1',
+                        }}
+                      />
                     </div>
+
+                    {/* Communes List */}
+                    <div
+                      className="d-flex flex-wrap gap-1.5 overflow-y-auto p-1"
+                      style={{ maxHeight: '180px' }}
+                    >
+                      {filteredCommunes.map((comm) => {
+                        const isCommActive = selectedCommune.toLowerCase() === comm.toLowerCase()
+                        return (
+                          <button
+                            key={comm}
+                            type="button"
+                            onClick={() => setSelectedCommune(comm)}
+                            className={`badge border text-start px-2 py-1.5 rounded transition-all cursor-pointer ${
+                              isCommActive
+                                ? 'bg-success text-white shadow-xs'
+                                : isDark
+                                  ? 'bg-dark text-light border-secondary hover:border-success'
+                                  : 'bg-light text-dark border hover:border-success'
+                            }`}
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: isCommActive ? 600 : 500,
+                            }}
+                          >
+                            <span className="d-flex align-items-center gap-1.5">
+                              <Icon name="building" size={12} className="opacity-75 flex-shrink-0" />
+                              <span>{comm}</span>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Selected Commune Focus Detail */}
+                    {selectedCommune && (
+                      <div
+                        className="mt-3 p-2.5 rounded-2 border"
+                        style={{
+                          backgroundColor: isDark ? '#064e3b' : '#ecfdf5',
+                          borderColor: isDark ? '#059669' : '#a7f3d0',
+                        }}
+                      >
+                        <div className="d-flex justify-content-between align-items-center">
+                          <div className="d-flex align-items-center gap-2">
+                            <div className="text-success d-flex align-items-center">
+                              <Icon name="map-pin" size={16} />
+                            </div>
+                            <div>
+                              <div className="fw-bold small text-success">
+                                {selectedCommune}
+                              </div>
+                              <div className="text-muted small" style={{ fontSize: '0.68rem' }}>
+                                District : {selectedDistrict} · Région : {activeRegionGeo.nom}
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCommune('')}
+                            className="btn btn-sm btn-link p-0 text-muted"
+                          >
+                            <Icon name="x" size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             ) : (
-              /* If no region selected, show Madagascar overview details */
+              /* IF NO REGION SELECTED: PROVINCES & QUICK REGION DIRECTORY */
               <div className="d-flex flex-column gap-3">
-                <div className="p-4 bg-white rounded-3 border h-100">
-                  <div className="d-flex align-items-center gap-2 mb-2">
-                    <span className="fs-4">🇲🇬</span>
+                <div
+                  className="p-4 rounded-3 border h-100 shadow-xs"
+                  style={{
+                    backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                    borderColor: isDark ? '#334155' : '#e2e8f0',
+                  }}
+                >
+                  <div className="d-flex align-items-center gap-2.5 mb-2">
+                    <svg
+                      width="30"
+                      height="20"
+                      viewBox="0 0 30 20"
+                      className="rounded border shadow-xs flex-shrink-0"
+                      aria-label="Drapeau de Madagascar"
+                    >
+                      {/* Left white vertical stripe */}
+                      <rect width="10" height="20" fill="#ffffff" />
+                      {/* Top right red stripe */}
+                      <rect x="10" width="20" height="10" fill="#dc2626" />
+                      {/* Bottom right green stripe */}
+                      <rect x="10" y="10" width="20" height="10" fill="#16a34a" />
+                    </svg>
                     <div>
-                      <h4 className="h6 fw-bold mb-0 text-dark">
+                      <h4 className={`h6 fw-bold mb-0 ${isDark ? 'text-white' : 'text-dark'}`}>
                         Sélectionnez une zone sur la carte
                       </h4>
-                      <div className="text-muted small" style={{ fontSize: '0.75rem' }}>
-                        Cliquez directement sur une région pour zoomer
+                      <div className="text-muted small" style={{ fontSize: '0.74rem' }}>
+                        Cliquez directement sur une région ou choisissez ci-dessous
                       </div>
                     </div>
                   </div>
 
                   <p className="text-secondary small mb-3">
-                    Cette carte interactive permet d'explorer et filtrer instantanément le
-                    recensement à travers les 6 provinces et 23 régions de Madagascar.
+                    La carte interactive de Madagascar permet de naviguer avec précision :
+                    sélectionnez une <strong>Province</strong>, zoomez sur une <strong>Région</strong>,
+                    explorez ses <strong>Districts</strong> puis descendez au niveau <strong>Commune</strong>.
                   </p>
 
-                  <div className="fw-semibold text-dark small mb-2">
-                    Exemples de régions clés :
+                  <div className={`fw-semibold small mb-2 ${isDark ? 'text-white' : 'text-dark'}`}>
+                    Provinces de Madagascar :
                   </div>
 
-                  <div className="d-flex flex-column gap-2">
-                    {[
-                      { nom: 'Atsimo-Andrefana', prov: 'Toliara', desc: 'Toliara, Morombe, Sakaraha' },
-                      { nom: 'Analamanga', prov: 'Antananarivo', desc: 'Antananarivo, Ivato' },
-                      { nom: 'Diana', prov: 'Antsiranana', desc: 'Diego-Suarez, Nosy Be' },
-                      { nom: 'Boeny', prov: 'Mahajanga', desc: 'Mahajanga, Marovoay' },
-                      { nom: 'Atsinanana', prov: 'Toamasina', desc: 'Tamatave, Brickaville' },
-                      { nom: 'Matsiatra Ambony', prov: 'Fianarantsoa', desc: 'Fianarantsoa, Ambalavao' },
-                    ].map((item) => (
-                      <button
-                        key={item.nom}
-                        type="button"
-                        onClick={() => {
-                          const reg = REGIONS_GEO.find((r) => r.nom === item.nom)
-                          if (reg) handleRegionClick(reg)
-                        }}
-                        className="btn btn-light text-start d-flex align-items-center justify-content-between p-2 rounded border"
-                      >
-                        <div>
-                          <div className="fw-bold small text-primary">{item.nom}</div>
-                          <div className="text-muted" style={{ fontSize: '0.68rem' }}>
-                            {item.prov} · {item.desc}
+                  {/* Province Selector Cards */}
+                  <div className="d-flex flex-column gap-1.5">
+                    {getAllProvinces().map((provName) => {
+                      const pTheme = PROVINCE_THEMES[provName] || PROVINCE_THEMES['Antananarivo']
+                      const isProvSelected =
+                        selectedProvince.toLowerCase() === provName.toLowerCase()
+                      const provRegions = getRegionsForProvince(provName)
+
+                      return (
+                        <button
+                          key={provName}
+                          type="button"
+                          onClick={() => {
+                            if (onSelectProvince) onSelectProvince(provName)
+                            if (onSelectRegion) onSelectRegion('')
+                            if (onSelectDistrict) onSelectDistrict('')
+                          }}
+                          className={`btn text-start d-flex align-items-center justify-content-between p-2 rounded-2 border transition-all ${
+                            isProvSelected
+                              ? 'shadow-xs'
+                              : isDark
+                                ? 'btn-dark text-light border-secondary'
+                                : 'btn-light text-dark'
+                          }`}
+                          style={{
+                            borderLeftWidth: '4px',
+                            borderLeftStyle: 'solid',
+                            borderLeftColor: pTheme.color,
+                            backgroundColor: isProvSelected
+                              ? isDark
+                                ? '#1e3a8a'
+                                : '#e0f2fe'
+                              : undefined,
+                          }}
+                        >
+                          <div>
+                            <div className="fw-bold small d-flex align-items-center gap-1.5">
+                              <span
+                                style={{
+                                  width: 8,
+                                  height: 8,
+                                  borderRadius: '50%',
+                                  backgroundColor: pTheme.color,
+                                }}
+                              />
+                              <span>Province de {provName}</span>
+                            </div>
+                            <div className="text-muted" style={{ fontSize: '0.68rem' }}>
+                              {provRegions.length} régions : {provRegions.map((r) => r.nom).join(', ')}
+                            </div>
                           </div>
-                        </div>
-                        <Icon name="chevron-right" size={13} className="text-muted" />
-                      </button>
-                    ))}
+                          <Icon name="chevron-right" size={13} className="text-muted" />
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
